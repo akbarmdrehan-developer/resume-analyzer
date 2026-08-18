@@ -1,0 +1,5 @@
+pypdf
+spacy
+scikit-learn
+streamlit
+https://github.com
