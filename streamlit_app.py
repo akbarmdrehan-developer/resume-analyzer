@@ -43,11 +43,17 @@ def extract_resume_info(text):
     }
 
 def calculate_match_score(resume_text, job_desc_text):
-    documents = [resume_text, job_desc_text]
-    vectorizer = TfidfVectorizer(stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(documents)
-    similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-    return round(float(similarity) * 100, 2)
+    try:
+        documents = [resume_text, job_desc_text]
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform(documents)
+        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
+        return round(float(similarity[0][0]) * 100, 2)
+    except ValueError:
+        # Fallback if text has no meaningful vocabulary words
+        return 0.0
+
+
 
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="centered")
