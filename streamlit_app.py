@@ -6,9 +6,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Cache the model load so the app runs smoothly
+# Cache the model load so the app runs smoothly
 @st.cache_resource
 def load_nlp():
-    return spacy.load("en_core_web_sm")
+    import en_core_web_sm
+    return en_core_web_sm.load()
 
 nlp = load_nlp()
 
