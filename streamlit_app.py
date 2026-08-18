@@ -1,18 +1,23 @@
 import re
 import spacy
 import streamlit as st
+import subprocess
 from pypdf import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Cache the model load so the app runs smoothly
-# Cache the model load so the app runs smoothly
+# --- FOOLPROOF CLOUD DOWNLOAD FOR SPACY ---
 @st.cache_resource
-def load_nlp():
-    import en_core_web_sm
-    return en_core_web_sm.load()
+def load_nlp_model():
+    try:
+        # Try loading the model normally
+        return spacy.load("en_core_web_sm")
+    except OSError:
+        # If it fails (first-time launch), force download it via background terminal
+        subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+        return spacy.load("en_core_web_sm")
 
-nlp = load_nlp()
+nlp = load_nlp_model()
 
 def extract_text_from_pdf(pdf_file):
     reader = PdfReader(pdf_file)
