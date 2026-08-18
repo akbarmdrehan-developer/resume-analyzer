@@ -2,4 +2,4 @@ pypdf
 spacy
 scikit-learn
 streamlit
-https://github.com
+en_core_web_sm
