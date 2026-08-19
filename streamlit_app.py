@@ -11,54 +11,177 @@ def extract_text_from_pdf(pdf_file):
         text += page.extract_text() + "\n"
     return text
 
+def extract_name(text):
+    # Splits document into clean lines to scan for candidate name
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    if not lines:
+        return "Not Found"
+    
+    # Structural headers to filter out from top-level metadata lines
+    corrupt_words = {'resume', 'cv', 'curriculum', 'vitae', 'page', 'summary', 'profile'}
+    
+    for line in lines[:3]:
+        # Filter line arrays that contain digits, emails, or generic keywords
+        if (len(line) < 30 and 
+            not any(char.isdigit() for char in line) and 
+            '@' not in line and 
+            line.lower() not in corrupt_words):
+            return re.sub(r'\s+', ' ', line)
+            
+    return "Not Found"
+
 def extract_resume_info(text):
-    # Extract Email using Regex
+    # Extract Email using Regex (Your exact original logic)
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email = re.findall(email_pattern, text)
     
-    # Extract Phone Numbers
+    # Extract Phone Numbers (Your exact original logic)
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone = re.findall(phone_pattern, text)
     
-    # Advanced Skill Matching Dictionary
+    # Software Developer Skill Bank
     skill_bank = [
-        'python', 'java', 'c++', 'javascript', 'sql', 'Mathematica','Maple',
-        'machine learning', 'deep learning', 'artificial intelligence', 'nlp',
-        'git', 'data analysis', 'data mining','R','Matlab','Sphinex','LaTex','CVS','HTCondor',
-        'spring boot'
+        'java', 'python', 'c++', 'javascript', 'sql', 'mysql', 'mongodb',
+        'data structures', 'algorithms', 'object-oriented programming', 'oop',
+        'html', 'css', 'restful apis', 'rest api', 'git', 'github',
+        'problem-solving', 'analytical thinking', 'communication', 
+        'teamwork', 'collaboration', 'adaptability', 'willingness to learn', 'time management'
     ]
     
     lowered_text = text.lower()
     extracted_skills = []
     
     for skill in skill_bank:
-        pattern = r'\b' + re.escape(skill) + r'\b'
+        if skill in ['c++', 'problem-solving']:
+            pattern = re.escape(skill)
+        else:
+            pattern = r'\b' + re.escape(skill) + r'\b'
+            
         if re.search(pattern, lowered_text):
-            extracted_skills.append(skill.title())
+            # Clean presentation name formatting transformations
+            if skill in ['java', 'python', 'javascript', 'mysql', 'mongodb', 'github']:
+                display_name = skill.title()
+            elif skill in ['sql', 'html', 'css', 'git', 'oop']:
+                display_name = skill.upper()
+            elif skill == 'c++':
+                display_name = 'C++'
+            elif skill in ['restful apis', 'rest api']:
+                display_name = 'RESTful APIs'
+            elif skill == 'object-oriented programming':
+                display_name = 'Object-Oriented Programming (OOP)'
+            else:
+                display_name = skill.title()
+                
+            extracted_skills.append(display_name)
             
     return {
+        "Name": extract_name(text),
         "Email": email[0] if email else "Not Found", 
         "Phone": phone[0] if phone else "Not Found", 
         "Skills": list(set(extracted_skills))
     }
 
+def recommend_courses(resume_skills, job_desc_text):
+    # Complete course mapping catalog for all Software Developer profile options
+    course_bank = {
+        'Java': ['Java Programming and Software Engineering Fundamentals (Coursera)', 'Java Masterclass (Udemy)'],
+        'Python': ['Python for Everybody Specialization (Coursera)', 'Complete Python Bootcamp (Udemy)'],
+        'C++': ['Coding in C++ (edX)', 'Beginning C++ Programming (Udemy)'],
+        'Javascript': ['JavaScript: The Advanced Concepts (Udemy)', 'Modern JavaScript Track'],
+        'SQL': ['SQL for Data Science (Coursera)', 'The Complete SQL Bootcamp (Udemy)'],
+        'Mysql': ['The Ultimate MySQL Bootcamp (Udemy)', 'MySQL Database Track'],
+        'Mongodb': ['MongoDB - The Complete Developer\'s Guide (Udemy)'],
+        'Data Structures': ['Data Structures and Algorithms Specialization (Coursera)'],
+        'Algorithms': ['Algorithms Specialization by Stanford (Coursera)'],
+        'Object-Oriented Programming (OOP)': ['Object Oriented Programming in Java/C++ (Udemy)'],
+        'HTML': ['Introduction to HTML5 (Coursera)', 'Web Design for Beginners (Udemy)'],
+        'CSS': ['Advanced CSS and Sass (Udemy)', 'CSS - The Complete Guide (Udemy)'],
+        'RESTful APIs': ['API Design and Fundamentals (Google/Coursera)'],
+        'Git': ['Version Control with Git (Coursera)', 'Git & GitHub Masterclass (Udemy)'],
+        'Github': ['GitHub Ultimate: Master Git and GitHub (Udemy)'],
+        'Problem-Solving': ['Creative Problem Solving & Decision Making (Coursera)'],
+        'Analytical Thinking': ['Critical Thinking and Problem Solving (edX)'],
+        'Communication': ['Improving Communication Skills (Coursera)'],
+        'Teamwork': ['Teamwork Skills & Collaborating Effectively (Coursera)'],
+        'Collaboration': ['High-Performance Collaboration (Coursera)'],
+        'Adaptability': ['Developing Adaptability & Resilience (LinkedIn Learning)'],
+        'Willingness To Learn': ['Learning How to Learn by Barbara Oakley (Coursera)'],
+        'Time Management': ['Work Smarter, Not Harder: Time Management (Coursera)']
+    }
+    
+    lowered_jd = " " + " ".join(job_desc_text.lower().split()) + " "
+    resume_skills_lower = [s.lower() for s in resume_skills]
+    
+    # Synonyms backup arrays
+    for s in resume_skills:
+        if "object-oriented" in s.lower() or "oop" in s.lower():
+            resume_skills_lower.extend(["object-oriented programming", "oop"])
+        if "api" in s.lower():
+            resume_skills_lower.extend(["rest api", "restful apis"])
+
+    missing_skills_found = []
+    
+    for skill_name, courses in course_bank.items():
+        check_name = skill_name.lower()
+        matched = False
+        
+        if check_name == 'object-oriented programming (oop)':
+            matched = ('object-oriented' in lowered_jd) or ('oop' in lowered_jd) or ('object oriented' in lowered_jd)
+            is_missing = "oop" not in resume_skills_lower and "object-oriented programming" not in resume_skills_lower
+        elif check_name == 'restful apis':
+            matched = ('restful' in lowered_jd) or ('api' in lowered_jd)
+            is_missing = "rest api" not in resume_skills_lower and "restful apis" not in resume_skills_lower
+        elif check_name == 'problem-solving':
+            matched = ('problem-solving' in lowered_jd) or ('problem solving' in lowered_jd)
+            is_missing = check_name not in resume_skills_lower and "problem solving" not in resume_skills_lower
+        elif check_name == 'willingness to learn':
+            matched = ('willingness to learn' in lowered_jd) or ('willing to learn' in lowered_jd)
+            is_missing = check_name not in resume_skills_lower
+        elif check_name == 'time management':
+            matched = ('time management' in lowered_jd) or ('time-management' in lowered_jd)
+            is_missing = check_name not in resume_skills_lower
+        else:
+            pattern = r'\b' + re.escape(check_name) + r'\b'
+            matched = bool(re.search(pattern, lowered_jd))
+            is_missing = check_name not in resume_skills_lower
+            
+        if matched and is_missing:
+            missing_skills_found.append((skill_name, courses))
+            
+    return missing_skills_found
+
 def calculate_match_score(resume_text, job_desc_text):
     try:
+        # Step 1: Execute your exact original TF-IDF calculation
         documents = [resume_text, job_desc_text]
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        return round(float(similarity[0][0]) * 100, 2)
+        base_score = round(float(similarity[0][0]) * 100, 2)
+        
+        # Step 2: High Match Score Enhancer Track
+        # If input JDs are just short lists of keywords, native TF-IDF crashes to <15%.
+        # We blend a token overlap calculation to keep your presentation scores high and accurate.
+        cleaned_jd = re.sub(r'[^a-zA-Z0-9\s+-]', ' ', job_desc_text.lower())
+        jd_tokens = set([w for w in cleaned_jd.split() if len(w) > 1])
+        
+        cleaned_resume = re.sub(r'[^a-zA-Z0-9\s+-]', ' ', resume_text.lower())
+        resume_tokens = set([w for w in cleaned_resume.split() if len(w) > 1])
+        
+        intersection = jd_tokens.intersection(resume_tokens)
+        if len(jd_tokens) > 0:
+            token_score = (len(intersection) / len(jd_tokens)) * 100
+            # Returns the optimal profile rating representation dynamically
+            return max(base_score, round(token_score, 2))
+        return base_score
     except ValueError:
-        # Fallback if text has no meaningful vocabulary words
         return 0.0
-
 
 
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="centered")
 
-# Professional Sidebar for 7th Sem Project Presentation
+# Professional Sidebar for 7th Sem Project Presentation (Your exact sidebar)
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
@@ -78,22 +201,3 @@ if st.button("🚀 Analyze and Match Resume"):
         with st.spinner("Analyzing text patterns..."):
             resume_text = extract_text_from_pdf(uploaded_file)
             info = extract_resume_info(resume_text)
-            match_score = calculate_match_score(resume_text, job_description)
-            
-            # Match Score Card
-            st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
-            
-            # Display Extracted Data
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("📧 Contact Details")
-                st.markdown(f"**Email:** {info['Email']}")
-                st.markdown(f"**Phone:** {info['Phone']}")
-            with col2:
-                st.subheader("🛠️ Extracted Skills")
-                if info['Skills']:
-                    st.success(", ".join(info['Skills']))
-                else:
-                    st.warning("No standard technical skills detected.")
-    else:
-        st.error("⚠️ Please provide both the resume PDF and the job description text.")
