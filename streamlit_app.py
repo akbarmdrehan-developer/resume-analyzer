@@ -13,7 +13,6 @@ def extract_text_from_pdf(pdf_file):
         if extracted:
             text += extracted + "\n"
 
-    # Normalize unicode whitespace/non-breaking spaces to standard spaces
     normalized_text = re.sub(r"\s+", " ", text)
     return normalized_text
 
@@ -43,11 +42,9 @@ def extract_name(text):
 def extract_resume_info(text):
     name = extract_name(text)
 
-    # Email extraction
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     email = re.findall(email_pattern, text)
 
-    # Phone extraction
     phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
     phone_matches = re.findall(phone_pattern, text)
 
@@ -58,7 +55,6 @@ def extract_resume_info(text):
             phone = match.strip()
             break
 
-    # Beginner Software Developer Skill Bank
     skill_bank = [
         "python",
         "java",
@@ -86,7 +82,7 @@ def extract_resume_info(text):
     for skill in skill_bank:
         pattern = r"\b" + re.escape(skill) + r"\b"
         if re.search(pattern, lowered_text):
-            extracted_skills.append(skill.title())
+            extracted_skills.append(skill.lower())
 
     return {
         "Name": name,
@@ -97,7 +93,6 @@ def extract_resume_info(text):
 
 
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
-    # 1. Extract job description skills using the same pattern
     skill_bank = [
         "python",
         "java",
@@ -119,49 +114,69 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         "problem solving",
     ]
 
+    # Map equivalent skills to prevent false misses
+    synonyms = {
+        "oop": "object oriented programming",
+        "object oriented programming": "oop",
+        "git": "github",
+        "github": "git",
+        "sql": "mysql",
+        "mysql": "sql",
+    }
+
     job_desc_lower = job_desc_text.lower()
     required_skills = [
-        s.title()
+        s
         for s in skill_bank
         if re.search(r"\b" + re.escape(s) + r"\b", job_desc_lower)
     ]
 
-    # Calculate Skill Keyword Overlap Match (70% weight)
-    if required_skills:
-        matched_skills = [s for s in required_skills if s in resume_skills]
-        skill_score = (len(matched_skills) / len(required_skills)) * 100
-    else:
-        skill_score = 50.0  # Default if no explicit tech skills in job desc
+    # Normalize extracted resume skills to lower-case
+    resume_skills_lower = [s.lower() for s in resume_skills]
 
-    # 2. Text TF-IDF Vector Similarity (30% weight)
+    if required_skills:
+        matched_count = 0
+        for req in required_skills:
+            # Match directly or match via synonym mapping
+            if req in resume_skills_lower or synonyms.get(req) in resume_skills_lower:
+                matched_count += 1
+        
+        skill_score = (matched_count / len(required_skills)) * 100
+    else:
+        skill_score = 85.0  # High default if job description has no tech requirements
+
+    # Text TF-IDF Vector Similarity
     try:
         documents = [resume_text, job_desc_text]
         vectorizer = TfidfVectorizer(stop_words="english")
         tfidf_matrix = vectorizer.fit_transform(documents)
-        vector_sim = float(
-            cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-        )
+        vector_sim = float(cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0])
         tfidf_score = vector_sim * 100
     except ValueError:
         tfidf_score = 0.0
 
-    # Combined Weighted Final Score
-    final_score = round((skill_score * 0.70) + (tfidf_score * 0.30), 2)
-    return min(final_score, 100.0)
+    # 85% Weight on Skill Matching + 15% Weight on Text Vector Similarity
+    final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
+
+    # Boost score slightly if all requested skills are matched
+    if required_skills and skill_score == 100.0:
+        final_score = max(final_score, 88.0)
+
+    return min(round(final_score, 2), 100.0)
 
 
 def get_course_recommendations(resume_skills, job_desc_text, match_score):
     course_database = {
-        "Python": "Python Basics for Data Science & Software (Coursera)",
-        "Java": "Java Programming: Solving Problems with Software (Coursera)",
-        "Javascript": "JavaScript Basics & DOM Manipulation (freeCodeCamp)",
-        "Sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
-        "Git": "Version Control with Git and GitHub for Beginners (Udemy)",
-        "Data Structures": "Data Structures & Algorithms in Python/Java (GeeksforGeeks / Coursera)",
-        "Algorithms": "Algorithms Specialization for Beginners (Coursera)",
-        "Html": "Responsive Web Design Certification (freeCodeCamp)",
-        "Css": "CSS Basics and Flexbox (freeCodeCamp / Scrimba)",
-        "Oop": "Object Oriented Programming Fundamentals (Udemy)",
+        "python": "Python Basics for Data Science & Software (Coursera)",
+        "java": "Java Programming: Solving Problems with Software (Coursera)",
+        "javascript": "JavaScript Basics & DOM Manipulation (freeCodeCamp)",
+        "sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
+        "git": "Version Control with Git and GitHub for Beginners (Udemy)",
+        "data structures": "Data Structures & Algorithms in Python/Java (GeeksforGeeks / Coursera)",
+        "algorithms": "Algorithms Specialization for Beginners (Coursera)",
+        "html": "Responsive Web Design Certification (freeCodeCamp)",
+        "css": "CSS Basics and Flexbox (freeCodeCamp / Scrimba)",
+        "oop": "Object Oriented Programming Fundamentals (Udemy)",
     }
 
     job_text_lower = job_desc_text.lower()
@@ -172,32 +187,11 @@ def get_course_recommendations(resume_skills, job_desc_text, match_score):
 
     for skill, course in course_database.items():
         if (
-            skill.lower() in job_text_lower
-            and skill.lower() not in resume_skills_lower
+            skill in job_text_lower
+            and skill not in resume_skills_lower
         ):
-            missing_skills.append(skill)
+            missing_skills.append(skill.title())
             recommendations.append(course)
-
-    if match_score < 50.0 and not recommendations:
-        fallback_pool = {
-            "web design": (
-                "HTML/CSS & Web Design",
-                "Responsive Web Design Certification (freeCodeCamp)",
-            ),
-            "git": (
-                "Git Version Control",
-                "Git & GitHub Starter Crash Course (Udemy)",
-            ),
-            "sql": (
-                "Database & SQL Basics",
-                "Intro to SQL and Databases (Udemy)",
-            ),
-        }
-
-        for skill_key, (skill_label, course_name) in fallback_pool.items():
-            if skill_key not in resume_skills_lower:
-                missing_skills.append(skill_label)
-                recommendations.append(course_name)
 
     return missing_skills, recommendations
 
@@ -223,7 +217,7 @@ uploaded_file = st.file_uploader(
 job_description = st.text_area(
     "Paste Job Description Here",
     height=150,
-    placeholder="Looking for a Junior Software Developer skilled in Python, SQL, Git, and Data Structures...",
+    placeholder="Looking for a Junior Software Developer proficient in Python, Java, SQL, Git, and Data Structures...",
 )
 
 if st.button("🚀 Analyze and Match Resume"):
@@ -247,7 +241,8 @@ if st.button("🚀 Analyze and Match Resume"):
             with col2:
                 st.subheader("🛠️ Extracted Skills")
                 if info["Skills"]:
-                    st.success(", ".join(info["Skills"]))
+                    display_skills = [s.title() for s in info["Skills"]]
+                    st.success(", ".join(display_skills))
                 else:
                     st.warning("No beginner developer skills detected.")
 
