@@ -13,6 +13,7 @@ def extract_text_from_pdf(pdf_file):
         if extracted:
             text += extracted + "\n"
 
+    # Normalize unicode whitespace/non-breaking spaces to standard spaces
     normalized_text = re.sub(r"\s+", " ", text)
     return normalized_text
 
@@ -42,9 +43,11 @@ def extract_name(text):
 def extract_resume_info(text):
     name = extract_name(text)
 
+    # Email extraction
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     email = re.findall(email_pattern, text)
 
+    # Flexible phone extraction pattern
     phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
     phone_matches = re.findall(phone_pattern, text)
 
@@ -55,6 +58,7 @@ def extract_resume_info(text):
             phone = match.strip()
             break
 
+    # Beginner Software Developer Skill Bank
     skill_bank = [
         "python",
         "java",
@@ -131,36 +135,38 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         if re.search(r"\b" + re.escape(s) + r"\b", job_desc_lower)
     ]
 
-    # Normalize extracted resume skills to lower-case
     resume_skills_lower = [s.lower() for s in resume_skills]
 
     if required_skills:
         matched_count = 0
         for req in required_skills:
-            # Match directly or match via synonym mapping
-            if req in resume_skills_lower or synonyms.get(req) in resume_skills_lower:
+            if (
+                req in resume_skills_lower
+                or synonyms.get(req) in resume_skills_lower
+            ):
                 matched_count += 1
-        
+
         skill_score = (matched_count / len(required_skills)) * 100
     else:
-        skill_score = 85.0  # High default if job description has no tech requirements
+        skill_score = 90.0
 
-    # Text TF-IDF Vector Similarity
+    # TF-IDF Vector Similarity
     try:
         documents = [resume_text, job_desc_text]
         vectorizer = TfidfVectorizer(stop_words="english")
         tfidf_matrix = vectorizer.fit_transform(documents)
-        vector_sim = float(cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0])
+        vector_sim = float(
+            cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+        )
         tfidf_score = vector_sim * 100
     except ValueError:
         tfidf_score = 0.0
 
-    # 85% Weight on Skill Matching + 15% Weight on Text Vector Similarity
-    final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
-
-    # Boost score slightly if all requested skills are matched
+    # Lock score at 85%+ minimum when 100% of required skills match
     if required_skills and skill_score == 100.0:
-        final_score = max(final_score, 88.0)
+        final_score = max(85.0 + (tfidf_score * 0.15), 88.0)
+    else:
+        final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
 
     return min(round(final_score, 2), 100.0)
 
@@ -206,6 +212,9 @@ with st.sidebar:
     st.markdown("**Project Title:** AI Resume Analyzer")
     st.markdown("**Semester:** 7th Semester B.Tech")
     st.write("---")
+    st.markdown(
+        "💡 *Tip: Upload a clean PDF version of your resume for best extraction results.*"
+    )
 
 st.title("📊 AI Resume Analyzer & Parser")
 st.markdown("### *7th Semester Engineering Project*")
@@ -229,8 +238,10 @@ if st.button("🚀 Analyze and Match Resume"):
                 resume_text, job_description, info["Skills"]
             )
 
+            # Match Score Metric Display
             st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
 
+            # Contact & Extracted Skills Section
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("📧 Contact Details")
@@ -248,6 +259,7 @@ if st.button("🚀 Analyze and Match Resume"):
 
             st.write("---")
 
+            # Course Recommendations Section
             st.subheader("💡 Course Recommendations to Boost Match Score")
             missing_skills, rec_courses = get_course_recommendations(
                 info["Skills"], job_description, match_score
