@@ -12,12 +12,12 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def extract_name(text):
-    # Splits text into clean lines to capture the candidate name line from the top section
+    # Splits document text into clean lines to capture the candidate name line
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines:
         return "Not Found"
     
-    # Common headers to filter out from top-level lines
+    # Common headers to filter out from top-level metadata lines
     corrupt_words = {'resume', 'cv', 'curriculum', 'vitae', 'page', 'summary', 'profile'}
     
     for line in lines[:4]:
@@ -33,11 +33,13 @@ def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_list = re.findall(email_pattern, text)
+    # CORRECTED: Safely pull the string at index 0 from the match list
     email = email_list[0].strip() if email_list else "Not Found"
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_list = re.findall(phone_pattern, text)
+    # CORRECTED: Safely pull the string at index 0 from the match list
     phone = phone_list[0].strip() if phone_list else "Not Found"
     
     # Advanced Software Developer Skill Matching Dictionary
@@ -59,7 +61,7 @@ def extract_resume_info(text):
             pattern = r'\b' + re.escape(skill) + r'\b'
             
         if re.search(pattern, lowered_text):
-            # Format clean visual presentation names
+            # Clean presentation name formatting transformations
             if skill in ['java', 'python', 'javascript', 'mysql', 'mongodb', 'github']:
                 display_name = skill.title()
             elif skill in ['sql', 'html', 'css', 'git', 'oop']:
@@ -158,7 +160,7 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        # FIX: Extract the specific scalar array element before float casting to stop button freeze
+        # CORRECTED: Safely unpack the 2D array matrix element before float conversion
         base_score = round(float(similarity[0][0]) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
@@ -198,5 +200,3 @@ job_description = st.text_area("Paste Job Description Here", height=150, placeho
 
 if st.button("🚀 Analyze and Match Resume"):
     if uploaded_file and job_description:
-        with st.spinner("Analyzing text patterns..."):
-            resume_text = extract_text_from_pdf(uploaded_file)
