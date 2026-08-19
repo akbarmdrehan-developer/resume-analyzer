@@ -152,9 +152,11 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        return round(float(similarity) * 100, 2)
+        # Extract the scalar element [0][0] from the 2D array before converting to float
+        return round(float(similarity[0][0]) * 100, 2)
     except ValueError:
         return 0.0
+
 
 
 # --- Streamlit UI Design ---
