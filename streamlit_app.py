@@ -190,7 +190,7 @@ st.markdown("### *7th Semester Engineering Project*")
 st.write("---")
 
 uploaded_file = st.file_uploader("Upload Resume (PDF format only)", type=["pdf"])
-job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Python developer skilled in SQL...")
+job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Software developer skilled in SQL...")
 
 # The Action Button
 if st.button("🚀 Analyze and Match Resume"):
