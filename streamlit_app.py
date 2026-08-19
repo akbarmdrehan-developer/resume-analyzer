@@ -31,15 +31,15 @@ def extract_name(text):
     return "Not Found"
 
 def extract_resume_info(text):
+    # Safe Email Extraction
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
-    # FIXED: Extract string index 0 safely before attempting strip operation
-    email = email_matches[0].strip() if email_matches else "Not Found"
+    email = str(email_matches[0]).strip() if len(email_matches) > 0 else "Not Found"
     
+    # Safe Phone Extraction
     phone_pattern = r'(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
-    # FIXED: Extract string index 0 safely before attempting strip operation
-    phone = phone_matches[0].strip() if phone_matches else "Not Found"
+    phone = str(phone_matches[0]).strip() if len(phone_matches) > 0 else "Not Found"
     
     skill_bank = [
         'java', 'python', 'c++', 'javascript',
@@ -192,3 +192,4 @@ with st.sidebar:
     st.markdown("**Semester:** 7th Semester B.E./B.Tech")
     st.write("---")
 
+st.title("📊 AI Resume Analyzer & Parser")
