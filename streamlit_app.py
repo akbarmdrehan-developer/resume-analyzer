@@ -12,10 +12,12 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def extract_name(text):
+    # Splits text into clean lines to capture the candidate name line from the top section
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines:
         return "Not Found"
     
+    # Common headers to filter out from top-level lines
     corrupt_words = {'resume', 'cv', 'curriculum', 'vitae', 'page', 'summary', 'profile'}
     
     for line in lines[:4]:
@@ -30,13 +32,15 @@ def extract_name(text):
 def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-    email_list = re.findall(email_pattern, text)
+    email_matches = re.findall(email_pattern, text)
+    email = email_matches[0].strip() if email_matches else "Not Found"
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
-    phone_list = re.findall(phone_pattern, text)
+    phone_matches = re.findall(phone_pattern, text)
+    phone = phone_matches[0].strip() if phone_matches else "Not Found"
     
-    # Advanced Software Developer Skill Matching Dictionary
+    # Modern Software Developer Skill Bank
     skill_bank = [
         'java', 'python', 'c++', 'javascript', 'sql', 'mysql', 'mongodb',
         'data structures', 'algorithms', 'object-oriented programming', 'oop',
@@ -55,6 +59,7 @@ def extract_resume_info(text):
             pattern = r'\b' + re.escape(skill) + r'\b'
             
         if re.search(pattern, lowered_text):
+            # Format clean visual presentation names
             if skill in ['java', 'python', 'javascript', 'mysql', 'mongodb', 'github']:
                 display_name = skill.title()
             elif skill in ['sql', 'html', 'css', 'git', 'oop']:
@@ -72,13 +77,13 @@ def extract_resume_info(text):
             
     return {
         "Name": extract_name(text),
-        "Email": email_list[0] if email_list else "Not Found", 
-        "Phone": phone_list[0] if phone_list else "Not Found", 
+        "Email": email, 
+        "Phone": phone, 
         "Skills": list(set(extracted_skills))
     }
 
 def recommend_courses(resume_skills, job_desc_text):
-    # Complete course mapping catalog for Software Developer skills
+    # Complete course mapping catalog for all Software Developer skills
     course_bank = {
         'Java': ['Java Programming and Software Engineering Fundamentals (Coursera)', 'Java Masterclass (Udemy)'],
         'Python': ['Python for Everybody Specialization (Coursera)', 'Complete Python Bootcamp (Udemy)'],
@@ -108,6 +113,7 @@ def recommend_courses(resume_skills, job_desc_text):
     lowered_jd = " " + " ".join(job_desc_text.lower().split()) + " "
     resume_skills_lower = [s.lower() for s in resume_skills]
     
+    # Handle key conceptual synonyms smoothly
     for s in resume_skills:
         if "object-oriented" in s.lower() or "oop" in s.lower():
             resume_skills_lower.extend(["object-oriented programming", "oop"])
@@ -155,7 +161,7 @@ def calculate_match_score(resume_text, job_desc_text):
         base_score = round(float(similarity[0][0]) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
-        # Calculates token intersection to stabilize scores for short inputs
+        # Calculates word token overlap to stabilize matching percentages for short keyword strings
         cleaned_jd = re.sub(r'[^a-zA-Z0-9\s+-]', ' ', job_desc_text.lower())
         jd_tokens = set([w for w in cleaned_jd.split() if len(w) > 1])
         
@@ -174,7 +180,7 @@ def calculate_match_score(resume_text, job_desc_text):
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="centered")
 
-# Professional Sidebar for 7th Sem Project Presentation
+# Professional Sidebar for 7th Sem Project Presentation (Your exact original)
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
@@ -195,12 +201,3 @@ if st.button("🚀 Analyze and Match Resume"):
             resume_text = extract_text_from_pdf(uploaded_file)
             info = extract_resume_info(resume_text)
             match_score = calculate_match_score(resume_text, job_description)
-            
-            # Match Score Card
-            st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
-            
-            # Display Extracted Data
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("📧 Contact Details")
-                st.markdown(f"**Name:** {info['Name']}")
