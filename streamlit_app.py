@@ -180,7 +180,7 @@ def calculate_match_score(resume_text, job_desc_text):
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="centered")
 
-# Professional Sidebar for 7th Sem Project Presentation
+# Professional Sidebar for 7th Sem Project Presentation (Your exact original)
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
