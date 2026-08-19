@@ -38,8 +38,8 @@ def extract_resume_info(text):
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email = re.findall(email_pattern, text)
     
-    # Extract Phone Numbers
-    phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
+    # IMPROVED: Highly robust phone pattern catching standard 10-digit, spaced, hyphenated, and country code numbers
+    phone_pattern = r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
     phone = re.findall(phone_pattern, text)
     
     # Updated Skill Bank combining Hard Skills, Web Basics, Tools, and Soft Skills
@@ -63,7 +63,7 @@ def extract_resume_info(text):
     extracted_skills = []
     
     for skill in skill_bank:
-        # Standardize skill matching boundaries
+        # Standardize skill matching boundaries safely
         if skill in ['c++', 'problem-solving']:
             pattern = re.escape(skill)
         elif skill in ['html', 'css', 'git', 'sql', 'oop']:
@@ -84,19 +84,19 @@ def extract_resume_info(text):
             elif skill == 'object-oriented programming':
                 display_name = 'Object-Oriented Programming (OOP)'
             else:
-                display_name = skill.title() # Handles composite conceptual & soft skill phrases
+                display_name = skill.title() 
                 
             extracted_skills.append(display_name)
             
     return {
         "Name": extract_name(text),
-        "Email": email if email else "Not Found", 
-        "Phone": phone if phone else "Not Found", 
+        "Email": email[0] if email else "Not Found", # FIXED: Extracts first element string stringently
+        "Phone": phone[0].strip() if phone else "Not Found", # FIXED: Extracts first string safely
         "Skills": list(set(extracted_skills))
     }
 
 def recommend_courses(resume_skills, job_desc_text):
-    # Expanded Course & Upskilling Bank tailored to requested skills
+    # Course Bank mapped explicitly to tracking keys
     course_bank = {
         'Java': ['Java Programming and Software Engineering Fundamentals (Coursera)', 'Java Masterclass (Udemy)'],
         'Python': ['Python for Everybody Specialization (Coursera)', 'Complete Python Bootcamp (Udemy)'],
@@ -113,7 +113,6 @@ def recommend_courses(resume_skills, job_desc_text):
         'RESTful APIs': ['API Design and Fundamentals (Google/Coursera)', 'REST API Design (Udemy)'],
         'Git': ['Version Control with Git (Coursera)', 'Git & GitHub Masterclass (Udemy)'],
         'Github': ['GitHub Ultimate: Master Git and GitHub (Udemy)', 'Introduction to GitHub (GitHub Skills Track)'],
-        # Professional/Soft skill guidance modules
         'Problem-Solving': ['Creative Problem Solving & Decision Making (Coursera)', 'Effective Problem-Solving Frameworks (LinkedIn Learning)'],
         'Analytical Thinking': ['Critical Thinking and Problem Solving (edX)', 'Introduction to Analytical Thinking (Coursera)'],
         'Communication': ['Improving Communication Skills (Coursera)', 'Effective Professional Communication (edX)'],
@@ -125,18 +124,37 @@ def recommend_courses(resume_skills, job_desc_text):
     }
     
     lowered_jd = job_desc_text.lower()
-    resume_skills_lower = [s.lower() for s in resume_skills]
+    # Normalize candidate skills to lowercase for precise comparison tracking
+    resume_skills_lower = []
+    for s in resume_skills:
+        resume_skills_lower.append(s.lower())
+        if "object-oriented" in s.lower() or "oop" in s.lower():
+            resume_skills_lower.extend(["object-oriented programming", "oop"])
+        if "api" in s.lower():
+            resume_skills_lower.extend(["rest api", "restful apis"])
+
     missing_skills_found = []
     
     for skill_name, courses in course_bank.items():
-        # Match variations dynamically
         check_name = skill_name.lower()
-        if 'object-oriented' in check_name:
-            matched = 'object-oriented' in lowered_jd or 'oop' in lowered_jd
-            is_missing = not any('oop' in s.lower() or 'object' in s.lower() for s in resume_skills_lower)
+        matched = False
+        
+        # FIXED: Multi-variant matching criteria ensures courses render even on relaxed inputs
+        if check_name == 'object-oriented programming (oop)':
+            matched = ('object-oriented' in lowered_jd) or ('oop' in lowered_jd) or ('object oriented' in lowered_jd)
+            is_missing = "oop" not in resume_skills_lower and "object-oriented programming" not in resume_skills_lower
         elif check_name == 'restful apis':
-            matched = 'restful' in lowered_jd or 'api' in lowered_jd
-            is_missing = not any('api' in s.lower() for s in resume_skills_lower)
+            matched = ('restful' in lowered_jd) or ('api' in lowered_jd)
+            is_missing = "rest api" not in resume_skills_lower and "restful apis" not in resume_skills_lower
+        elif check_name == 'problem-solving':
+            matched = ('problem-solving' in lowered_jd) or ('problem solving' in lowered_jd)
+            is_missing = check_name not in resume_skills_lower and "problem solving" not in resume_skills_lower
+        elif check_name == 'willingness to learn':
+            matched = ('willingness to learn' in lowered_jd) or ('willing to learn' in lowered_jd)
+            is_missing = check_name not in resume_skills_lower
+        elif check_name == 'time management':
+            matched = ('time management' in lowered_jd) or ('time-management' in lowered_jd)
+            is_missing = check_name not in resume_skills_lower
         else:
             matched = check_name in lowered_jd
             is_missing = check_name not in resume_skills_lower
@@ -152,11 +170,10 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        # Extract the scalar element [0][0] from the 2D array before converting to float
+        # FIXED: Safely index the matrix to bypass conversion runtime errors
         return round(float(similarity[0][0]) * 100, 2)
     except ValueError:
         return 0.0
-
 
 
 # --- Streamlit UI Design ---
@@ -175,34 +192,5 @@ st.markdown("### *7th Semester Engineering Project*")
 st.write("---")
 
 uploaded_file = st.file_uploader("Upload Resume (PDF format only)", type=["pdf"])
-job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Software developer skilled in SQL...")
+job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Python developer skilled in SQL...")
 
-if st.button("🚀 Analyze and Match Resume"):
-    if uploaded_file and job_description:
-        with st.spinner("Analyzing text patterns..."):
-            resume_text = extract_text_from_pdf(uploaded_file)
-            info = extract_resume_info(resume_text)
-            match_score = calculate_match_score(resume_text, job_description)
-            
-            # Match Score Card
-            st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
-            
-            # Display Extracted Data
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("👤 Candidate Profile")
-                st.markdown(f"**Name:** {info['Name']}")
-                st.markdown(f"**Email:** {info['Email']}")
-                st.markdown(f"**Phone:** {info['Phone']}")
-            with col2:
-                st.subheader("🛠️ Extracted Skills")
-                if info['Skills']:
-                    st.success(", ".join(info['Skills']))
-                else:
-                    st.warning("No standard technical skills detected.")
-            
-            # --- Course Recommendation Section ---
-            st.write("---")
-            st.subheader("📚 Upskilling & Course Recommendations")
-            st.markdown("Based on the target Job Description, acquire these missing skills to maximize your score:")
-            
