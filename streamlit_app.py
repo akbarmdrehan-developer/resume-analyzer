@@ -33,14 +33,14 @@ def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
-    # PERMANENT FIX: Safely extract string element at index 0 before stripping
-    email = email_matches[0].strip() if email_matches else "Not Found"
+    # BULLETPROOF FIX: Safely pops the first element to bypass index copy-paste formatting issues
+    email = email_matches.pop(0).strip() if email_matches else "Not Found"
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
-    # PERMANENT FIX: Safely extract string element at index 0 before stripping
-    phone = phone_matches[0].strip() if phone_matches else "Not Found"
+    # BULLETPROOF FIX: Safely pops the first element to bypass index copy-paste formatting issues
+    phone = phone_matches.pop(0).strip() if phone_matches else "Not Found"
     
     # Modern Software Developer Skill Bank
     skill_bank = [
@@ -160,7 +160,7 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        base_score = round(float(similarity[0][0]) * 100, 2)
+        base_score = round(float(similarity) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
         # Calculates word token overlap to stabilize matching percentages for short keyword strings
