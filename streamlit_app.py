@@ -8,7 +8,10 @@ def extract_text_from_pdf(pdf_file):
     reader = PdfReader(pdf_file)
     text = ""
     for page in reader.pages:
-        text += page.extract_text() + "\n"
+        page_text = page.extract_text()
+        if page_text:
+            # Flatten multi-space tabular gaps into uniform line blocks
+            text += "\n".join([line.strip() for line in page_text.split('\n') if line.strip()]) + "\n"
     return text
 
 def extract_name(text):
@@ -18,23 +21,27 @@ def extract_name(text):
     
     corrupt_words = {'resume', 'cv', 'curriculum', 'vitae', 'page', 'summary', 'profile'}
     
-    for line in lines[:3]:
-        if (len(line) < 30 and 
-            not any(char.isdigit() for char in line) and 
-            '@' not in line and 
-            line.lower() not in corrupt_words):
-            name = re.sub(r'\s+', ' ', line)
-            return name
+    for line in lines[:4]:
+        line_clean = re.sub(r'\s+', ' ', line).strip()
+        if (len(line_clean) < 30 and 
+            not any(char.isdigit() for char in line_clean) and 
+            '@' not in line_clean and 
+            line_clean.lower() not in corrupt_words):
+            return line_clean
             
     return "Not Found"
 
 def extract_resume_info(text):
+    # Extract Email safely
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
+    # FIX: Isolate element index 0 safely before cleaning spaces
     email = email_matches[0].strip() if email_matches else "Not Found"
     
+    # Extract Phone numbers cleanly
     phone_pattern = r'(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
+    # FIX: Isolate element index 0 safely before cleaning spaces
     phone = phone_matches[0].strip() if phone_matches else "Not Found"
     
     skill_bank = [
@@ -47,7 +54,7 @@ def extract_resume_info(text):
         'teamwork', 'collaboration', 'adaptability', 'willingness to learn', 'time management'
     ]
     
-    lowered_text = text.lower()
+    lowered_text = " " + " ".join(text.lower().split()) + " "
     extracted_skills = []
     
     for skill in skill_bank:
@@ -106,7 +113,7 @@ def recommend_courses(resume_skills, job_desc_text):
         'Time Management': ['Work Smarter, Not Harder: Time Management for Personal & Professional Productivity (Coursera)']
     }
     
-    lowered_jd = job_desc_text.lower()
+    lowered_jd = " " + " ".join(job_desc_text.lower().split()) + " "
     
     resume_skills_lower = []
     for s in resume_skills:
@@ -138,7 +145,8 @@ def recommend_courses(resume_skills, job_desc_text):
             matched = ('time management' in lowered_jd) or ('time-management' in lowered_jd)
             is_missing = check_name not in resume_skills_lower
         else:
-            matched = check_name in lowered_jd
+            pattern = r'\b' + re.escape(check_name) + r'\b'
+            matched = bool(re.search(pattern, lowered_jd))
             is_missing = check_name not in resume_skills_lower
             
         if matched and is_missing:
@@ -165,7 +173,6 @@ with st.sidebar:
     st.markdown("**Project Title:** AI Resume Analyzer")
     st.markdown("**Semester:** 7th Semester B.E./B.Tech")
     st.write("---")
-    st.markdown("💡 *Tip: Upload a clean PDF version of your resume for best extraction results.*")
 
 st.title("📊 AI Resume Analyzer & Parser")
 st.markdown("### *7th Semester Engineering Project*")
@@ -192,12 +199,3 @@ if st.button("🚀 Analyze and Match Resume"):
             with col2:
                 st.subheader("🛠️ Extracted Skills")
                 if info['Skills']:
-                    st.success(", ".join(info['Skills']))
-                else:
-                    st.warning("No standard technical skills detected.")
-            
-            st.write("---")
-            st.subheader("📚 Upskilling & Course Recommendations")
-            st.markdown("Based on the target Job Description, acquire these missing skills to maximize your score:")
-            
-            recommended_courses_list = recommend_courses(info['Skills'], job_description)
