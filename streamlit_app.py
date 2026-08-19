@@ -33,13 +33,13 @@ def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_list = re.findall(email_pattern, text)
-    # SAFE LOGIC: Pull raw string index 0 and clear spacing properties safely
+    # PERMANENT FIXED: Pull string item at index 0 before executing the strip method
     email = email_list[0].strip() if email_list else "Not Found"
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_list = re.findall(phone_pattern, text)
-    # SAFE LOGIC: Pull raw string index 0 and clear spacing properties safely
+    # PERMANENT FIXED: Pull string item at index 0 before executing the strip method
     phone = phone_list[0].strip() if phone_list else "Not Found"
     
     # Advanced Software Developer Skill Matching Dictionary
@@ -160,6 +160,7 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
+        # PERMANENT FIXED: Unpack matrix indices to prevent float type conversion errors
         base_score = round(float(similarity[0][0]) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
@@ -186,7 +187,7 @@ st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="ce
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
-    st.markdown("**Semester:** 7th Semester B.Tech")
+    st.markdown("**Semester:** 7th Semester B.E./B.Tech")
     st.write("---")
     st.markdown("💡 *Tip: Upload a clean PDF version of your resume for best extraction results.*")
 
@@ -195,9 +196,6 @@ st.markdown("### *7th Semester Engineering Project*")
 st.write("---")
 
 uploaded_file = st.file_uploader("Upload Resume (PDF format only)", type=["pdf"])
-job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Software developer skilled in SQL...")
+job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Python developer skilled in SQL...")
 
 if st.button("🚀 Analyze and Match Resume"):
-    if uploaded_file and job_description:
-        with st.spinner("Analyzing text patterns..."):
-            resume_text = extract_text_from_pdf(uploaded_file)
