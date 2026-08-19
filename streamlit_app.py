@@ -33,12 +33,14 @@ def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
-    email = email_matches[0].strip() if email_matches else "Not Found"
+    # BULLETPROOF FIX: Use a safe list item extraction to avoid indexing crashes
+    email = email_matches[0].strip() if (isinstance(email_matches, list) and len(email_matches) > 0) else "Not Found"
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
-    phone = phone_matches[0].strip() if phone_matches else "Not Found"
+    # BULLETPROOF FIX: Use a safe list item extraction to avoid indexing crashes
+    phone = phone_matches[0].strip() if (isinstance(phone_matches, list) and len(phone_matches) > 0) else "Not Found"
     
     # Modern Software Developer Skill Bank
     skill_bank = [
@@ -196,8 +198,3 @@ uploaded_file = st.file_uploader("Upload Resume (PDF format only)", type=["pdf"]
 job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Software developer skilled in SQL...")
 
 if st.button("🚀 Analyze and Match Resume"):
-    if uploaded_file and job_description:
-        with st.spinner("Analyzing text patterns..."):
-            resume_text = extract_text_from_pdf(uploaded_file)
-            info = extract_resume_info(resume_text)
-            match_score = calculate_match_score(resume_text, job_description)
