@@ -31,10 +31,11 @@ def extract_name(text):
             r"https?://\S+|www\.\S+|\+?\d[\d\s.-]{8,}", "", cleaned_line
         )
         cleaned_line = re.sub(r"[|•·–-]", " ", cleaned_line)
+        cleaned_line = re.sub(r"[^a-zA-Z\s]", "", cleaned_line)
         cleaned_line = re.sub(r"\s+", " ", cleaned_line).strip()
 
         words = cleaned_line.split()
-        if 2 <= len(words) <= 4 and all(w.isalpha() for w in words):
+        if 2 <= len(words) <= 4:
             return " ".join(words).title()
 
     return "Not Found"
@@ -47,7 +48,7 @@ def extract_resume_info(text):
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     email = re.findall(email_pattern, text)
 
-    # Flexible phone extraction pattern
+    # Phone extraction
     phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
     phone_matches = re.findall(phone_pattern, text)
 
@@ -118,7 +119,6 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         "problem solving",
     ]
 
-    # Map equivalent skills to prevent false misses
     synonyms = {
         "oop": "object oriented programming",
         "object oriented programming": "oop",
@@ -148,7 +148,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
 
         skill_score = (matched_count / len(required_skills)) * 100
     else:
-        skill_score = 90.0
+        skill_score = 100.0
 
     # TF-IDF Vector Similarity
     try:
@@ -162,12 +162,11 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except ValueError:
         tfidf_score = 0.0
 
-    # Lock score at 85%+ minimum when 100% of required skills match
+    # Direct 100% score override when all required skills exist in the candidate's profile
     if required_skills and skill_score == 100.0:
-        final_score = max(85.0 + (tfidf_score * 0.15), 88.0)
-    else:
-        final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
+        return 100.0
 
+    final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
     return min(round(final_score, 2), 100.0)
 
 
@@ -192,10 +191,7 @@ def get_course_recommendations(resume_skills, job_desc_text, match_score):
     recommendations = []
 
     for skill, course in course_database.items():
-        if (
-            skill in job_text_lower
-            and skill not in resume_skills_lower
-        ):
+        if skill in job_text_lower and skill not in resume_skills_lower:
             missing_skills.append(skill.title())
             recommendations.append(course)
 
@@ -226,7 +222,7 @@ uploaded_file = st.file_uploader(
 job_description = st.text_area(
     "Paste Job Description Here",
     height=150,
-    placeholder="Looking for a Junior Software Developer proficient in Python, Java, SQL, Git, and Data Structures...",
+    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, and Data Structures...",
 )
 
 if st.button("🚀 Analyze and Match Resume"):
@@ -238,10 +234,8 @@ if st.button("🚀 Analyze and Match Resume"):
                 resume_text, job_description, info["Skills"]
             )
 
-            # Match Score Metric Display
             st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
 
-            # Contact & Extracted Skills Section
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("📧 Contact Details")
@@ -259,7 +253,6 @@ if st.button("🚀 Analyze and Match Resume"):
 
             st.write("---")
 
-            # Course Recommendations Section
             st.subheader("💡 Course Recommendations to Boost Match Score")
             missing_skills, rec_courses = get_course_recommendations(
                 info["Skills"], job_description, match_score
