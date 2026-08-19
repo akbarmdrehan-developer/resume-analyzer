@@ -35,13 +35,13 @@ def extract_resume_info(text):
     # Extract Email safely
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
-    # FIX: Isolate element index 0 safely before cleaning spaces
+    # FIX: Safely pull string index 0 before attempting strip operation
     email = email_matches[0].strip() if email_matches else "Not Found"
     
     # Extract Phone numbers cleanly
     phone_pattern = r'(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
-    # FIX: Isolate element index 0 safely before cleaning spaces
+    # FIX: Safely pull string index 0 before attempting strip operation
     phone = phone_matches[0].strip() if phone_matches else "Not Found"
     
     skill_bank = [
