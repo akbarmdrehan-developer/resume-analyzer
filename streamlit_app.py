@@ -12,81 +12,66 @@ def extract_text_from_pdf(pdf_file):
         extracted = page.extract_text()
         if extracted:
             text += extracted + "\n"
-    return text
+
+    # Normalize all unicode whitespace/non-breaking spaces to standard spaces
+    normalized_text = re.sub(r"\s+", " ", text)
+    return normalized_text
 
 
 def extract_name(text):
-    # Standard email/phone/url removal to avoid mistaking them for names
-    cleaned_first_lines = []
     lines = [line.strip() for line in text.split("\n") if line.strip()]
-
-    for line in lines[:5]:  # Look closely at the top 5 lines
+    for line in lines[:5]:
         if not re.search(
             r"@|http|www|\d|\b(resume|curriculum|vitae)\b", line, re.I
         ):
-            # Check if line looks like a valid name (2-4 capitalized words)
             if re.match(
                 r"^[A-Z][a-zA-Z'.-]+(?:\s+[A-Z][a-zA-Z'.-]+){1,3}$", line
             ):
                 return line.title()
+    # Fallback to simple first line match if standard header layout is used
+    if lines:
+        possible_name = lines[0].split("|")[0].strip()
+        if len(possible_name.split()) <= 4:
+            return possible_name.title()
     return "Not Found"
 
 
 def extract_resume_info(text):
-    # Extract Name
     name = extract_name(text)
 
-    # Extract Email using Regex
+    # Email extraction
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     email = re.findall(email_pattern, text)
 
-    # Extract Phone Numbers
-    phone_pattern = (
-        r"\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b"
-    )
-    phone = re.findall(phone_pattern, text)
+    # Flexible phone extraction pattern handling spaces, international prefixes, and dashes
+    phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
+    phone_matches = re.findall(phone_pattern, text)
 
-    # Tailored Software Developer Skill Bank
+    # Filter matches to ensure a realistic phone digit count (10-13 digits)
+    phone = "Not Found"
+    for match in phone_matches:
+        digits_only = re.sub(r"\D", "", match)
+        if 10 <= len(digits_only) <= 13:
+            phone = match.strip()
+            break
+
+    # Developer Skill Bank
     skill_bank = [
         "python",
         "java",
         "c++",
-        "c#",
         "javascript",
-        "typescript",
         "sql",
-        "nosql",
         "react",
-        "angular",
-        "vue.js",
-        "node.js",
-        "express",
         "django",
-        "flask",
-        "fastapi",
         "spring boot",
         "html",
         "css",
-        "bootstrap",
-        "tailwind",
         "git",
-        "github",
-        "docker",
-        "kubernetes",
         "aws",
-        "azure",
-        "gcp",
-        "ci/cd",
-        "rest api",
-        "graphql",
-        "microservices",
         "data structures",
         "algorithms",
         "system design",
-        "linux",
-        "postgresql",
-        "mongodb",
-        "redis",
     ]
 
     lowered_text = text.lower()
@@ -100,7 +85,7 @@ def extract_resume_info(text):
     return {
         "Name": name,
         "Email": email[0] if email else "Not Found",
-        "Phone": phone[0] if phone else "Not Found",
+        "Phone": phone,
         "Skills": list(set(extracted_skills)),
     }
 
@@ -116,21 +101,20 @@ def calculate_match_score(resume_text, job_desc_text):
         return 0.0
 
 
-def get_course_recommendations(resume_skills, job_desc_text):
-    # Mapping high-demand skills to recommended learning resources
+def get_course_recommendations(resume_skills, job_desc_text, match_score):
     course_database = {
-        "Python": "Python for Everybody Specialization (Coursera / Univ. of Michigan)",
-        "Java": "Java Programming and Software Engineering Fundamentals (Coursera)",
+        "Python": "Python for Everybody Specialization (Coursera)",
+        "Java": "Java Programming Fundamentals (Coursera)",
         "React": "React - The Complete Guide (Udemy)",
         "Node.Js": "The Complete Node.js Developer Course (Udemy)",
         "Docker": "Docker & Kubernetes: The Practical Guide (Udemy)",
-        "Aws": "AWS Certified Developer Associate (A Cloud Guru / Udemy)",
+        "Aws": "AWS Certified Developer Associate (Udemy)",
         "Sql": "The Complete SQL Bootcamp (Udemy)",
-        "Spring Boot": "Spring Boot Fundamentals (Pluralsight / Udemy)",
+        "Spring Boot": "Spring Boot Fundamentals (Pluralsight)",
         "System Design": "Grokking the System Design Interview (Educative.io)",
-        "Data Structures": "Data Structures and Algorithms Specialization (Coursera)",
-        "Git": "Git Complete: The definitive step-by-step guide (Udemy)",
-        "Kubernetes": "Certified Kubernetes Administrator (CKA) (Linux Foundation)",
+        "Data Structures": "Data Structures & Algorithms Specialization (Coursera)",
+        "Git": "Git Complete: The Definitive Guide (Udemy)",
+        "Kubernetes": "Certified Kubernetes Administrator (Linux Foundation)",
     }
 
     job_text_lower = job_desc_text.lower()
@@ -140,13 +124,23 @@ def get_course_recommendations(resume_skills, job_desc_text):
     recommendations = []
 
     for skill, course in course_database.items():
-        # Skill is requested in Job Description but missing from candidate's resume
         if (
             skill.lower() in job_text_lower
             and skill.lower() not in resume_skills_lower
         ):
             missing_skills.append(skill)
             recommendations.append(course)
+
+    # General recommendations if match score is low (< 50%)
+    if match_score < 50.0 and not recommendations:
+        missing_skills.append("Core Software Development & System Design")
+        recommendations.extend(
+            [
+                "Data Structures and Algorithms Specialization (Coursera)",
+                "System Design Fundamentals (Educative.io)",
+                "Full Stack Web Development Bootcamp (Udemy)",
+            ]
+        )
 
     return missing_skills, recommendations
 
@@ -156,15 +150,11 @@ st.set_page_config(
     page_title="AI Resume Analyzer", page_icon="📊", layout="centered"
 )
 
-# Sidebar
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
     st.markdown("**Semester:** 7th Semester B.Tech")
     st.write("---")
-    st.markdown(
-        "💡 *Tip: Upload a clean PDF version of your resume for best extraction results.*"
-    )
 
 st.title("📊 AI Resume Analyzer & Parser")
 st.markdown("### *7th Semester Engineering Project*")
@@ -173,11 +163,7 @@ st.write("---")
 uploaded_file = st.file_uploader(
     "Upload Resume (PDF format only)", type=["pdf"]
 )
-job_description = st.text_area(
-    "Paste Job Description Here",
-    height=150,
-    placeholder="Looking for a Software Developer skilled in React, Node.js, AWS, and SQL...",
-)
+job_description = st.text_area("Paste Job Description Here", height=150)
 
 if st.button("🚀 Analyze and Match Resume"):
     if uploaded_file and job_description:
@@ -186,10 +172,8 @@ if st.button("🚀 Analyze and Match Resume"):
             info = extract_resume_info(resume_text)
             match_score = calculate_match_score(resume_text, job_description)
 
-            # Match Score Card
             st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
 
-            # Display Extracted Data
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("📧 Contact Details")
@@ -206,23 +190,22 @@ if st.button("🚀 Analyze and Match Resume"):
 
             st.write("---")
 
-            # Course Recommendations Section
             st.subheader("💡 Course Recommendations to Boost Match Score")
             missing_skills, rec_courses = get_course_recommendations(
-                info["Skills"], job_description
+                info["Skills"], job_description, match_score
             )
 
-            if rec_courses:
-                st.info(
-                    f"We found missing skills required in the job description: **{', '.join(missing_skills)}**"
-                )
+            if match_score < 50.0 or rec_courses:
+                if missing_skills:
+                    st.info(
+                        f"Target skills/areas to focus on: **{', '.join(missing_skills)}**"
+                    )
                 for i, course in enumerate(rec_courses, 1):
                     st.write(f"**{i}.** {course}")
             else:
                 st.success(
                     "🎉 Great job! Your technical skill profile matches the core requirements of this job description."
                 )
-
     else:
         st.error(
             "⚠️ Please provide both the resume PDF and the job description text."
