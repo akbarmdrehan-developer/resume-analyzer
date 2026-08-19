@@ -22,10 +22,10 @@ def extract_resume_info(text):
     
     # Advanced Skill Matching Dictionary
     skill_bank = [
-        'python', 'java', 'c++', 'c#', 'javascript', 'typescript', 'sql', 'mysql', 'mongodb', 
-        'machine learning', 'deep learning', 'artificial intelligence', 'nlp', 'react', 'node.js',
-        'html', 'css', 'git', 'github', 'aws', 'azure', 'docker', 'kubernetes', 'data analysis',
-        'excel', 'tableau', 'power bi', 'django', 'flask', 'fastapi', 'spring boot'
+        'python', 'java', 'c++', 'javascript', 'sql', 'mysql', 
+        'machine learning', 'deep learning', 'artificial intelligence', 'nlp',
+        'html', 'css', 'git', 'data analysis',
+        'excel', 'django', 'spring boot'
     ]
     
     lowered_text = text.lower()
