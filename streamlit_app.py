@@ -32,17 +32,13 @@ def extract_name(text):
 def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-    email_matches = re.findall(email_pattern, text)
-    # BULLETPROOF NON-INDEXING FIX: Safely extracts the string using list slicing
-    email = "".join(email_matches[:1]).strip() if email_matches else "Not Found"
+    email = re.findall(email_pattern, text)
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
-    phone_matches = re.findall(phone_pattern, text)
-    # BULLETPROOF NON-INDEXING FIX: Safely extracts the string using list slicing
-    phone = "".join(phone_matches[:1]).strip() if phone_matches else "Not Found"
+    phone = re.findall(phone_pattern, text)
     
-    # Modern Software Developer Skill Bank
+    # Software Developer Skill Bank
     skill_bank = [
         'java', 'python', 'c++', 'javascript', 'sql', 'mysql', 'mongodb',
         'data structures', 'algorithms', 'object-oriented programming', 'oop',
@@ -61,7 +57,7 @@ def extract_resume_info(text):
             pattern = r'\b' + re.escape(skill) + r'\b'
             
         if re.search(pattern, lowered_text):
-            # Format clean visual presentation names
+            # Clean presentation name formatting transformations
             if skill in ['java', 'python', 'javascript', 'mysql', 'mongodb', 'github']:
                 display_name = skill.title()
             elif skill in ['sql', 'html', 'css', 'git', 'oop']:
@@ -79,8 +75,8 @@ def extract_resume_info(text):
             
     return {
         "Name": extract_name(text),
-        "Email": email, 
-        "Phone": phone, 
+        "Email": email[0] if email else "Not Found", 
+        "Phone": phone[0] if phone else "Not Found", 
         "Skills": list(set(extracted_skills))
     }
 
@@ -160,7 +156,7 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        base_score = round(float(similarity) * 100, 2)
+        base_score = round(float(similarity[0][0]) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
         # Calculates word token overlap to stabilize matching percentages for short keyword strings
@@ -200,3 +196,8 @@ job_description = st.text_area("Paste Job Description Here", height=150, placeho
 if st.button("🚀 Analyze and Match Resume"):
     if uploaded_file and job_description:
         with st.spinner("Analyzing text patterns..."):
+            resume_text = extract_text_from_pdf(uploaded_file)
+            info = extract_resume_info(resume_text)
+            match_score = calculate_match_score(resume_text, job_description)
+            
+            # Match Score Card
