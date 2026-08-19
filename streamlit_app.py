@@ -33,13 +33,13 @@ def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_list = re.findall(email_pattern, text)
-    # CORRECT INDEX UNBOXING: Isolates first string element safely to prevent list crashes
+    # SAFE LOGIC: Pull raw string index 0 and clear spacing properties safely
     email = email_list[0].strip() if email_list else "Not Found"
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_list = re.findall(phone_pattern, text)
-    # CORRECT INDEX UNBOXING: Isolates first string element safely to prevent list crashes
+    # SAFE LOGIC: Pull raw string index 0 and clear spacing properties safely
     phone = phone_list[0].strip() if phone_list else "Not Found"
     
     # Advanced Software Developer Skill Matching Dictionary
@@ -160,7 +160,6 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        # CORRECT INDEX UNBOXING: Pull coordinate cleanly from 2D array matrix before float casting
         base_score = round(float(similarity[0][0]) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
@@ -199,3 +198,6 @@ uploaded_file = st.file_uploader("Upload Resume (PDF format only)", type=["pdf"]
 job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Software developer skilled in SQL...")
 
 if st.button("🚀 Analyze and Match Resume"):
+    if uploaded_file and job_description:
+        with st.spinner("Analyzing text patterns..."):
+            resume_text = extract_text_from_pdf(uploaded_file)
