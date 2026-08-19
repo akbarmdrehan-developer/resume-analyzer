@@ -24,7 +24,7 @@ def extract_name(text):
             not any(char.isdigit() for char in line) and 
             '@' not in line and 
             line.lower() not in corrupt_words):
-            return re.sub(r'\s+', ' ', line)
+            return re.sub(r'\s+', ' ', line).strip()
             
     return "Not Found"
 
@@ -153,10 +153,10 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        base_score = round(float(similarity[0][0]) * 100, 2)
+        base_score = round(float(similarity) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
-        # To fix the low score issue with short keyword inputs, we calculate word token overlap
+        # Calculates token intersection to stabilize scores for short inputs
         cleaned_jd = re.sub(r'[^a-zA-Z0-9\s+-]', ' ', job_desc_text.lower())
         jd_tokens = set([w for w in cleaned_jd.split() if len(w) > 1])
         
@@ -175,6 +175,7 @@ def calculate_match_score(resume_text, job_desc_text):
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="centered")
 
+# Professional Sidebar for 7th Sem Project Presentation
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
@@ -202,4 +203,3 @@ if st.button("🚀 Analyze and Match Resume"):
             # Display Extracted Data
             col1, col2 = st.columns(2)
             with col1:
-                st.subheader("📧 Contact Details")
