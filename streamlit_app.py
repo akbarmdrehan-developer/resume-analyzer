@@ -33,10 +33,12 @@ def extract_name(text):
 def extract_resume_info(text):
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
+    # FIXED: Extract string index 0 safely before attempting strip operation
     email = email_matches[0].strip() if email_matches else "Not Found"
     
     phone_pattern = r'(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
+    # FIXED: Extract string index 0 safely before attempting strip operation
     phone = phone_matches[0].strip() if phone_matches else "Not Found"
     
     skill_bank = [
@@ -109,12 +111,11 @@ def recommend_courses(resume_skills, job_desc_text):
     }
     
     lowered_jd = " " + " ".join(job_desc_text.lower().split()) + " "
+    resume_skills_lower = [s.lower() for s in resume_skills]
     
-    resume_skills_lower = []
     for s in resume_skills:
-        resume_skills_lower.append(s.lower())
         if "object-oriented" in s.lower() or "oop" in s.lower():
-            resume_skills_lower.extend(["object-oriented programming", "oop"])
+            resume_skills_lower.extend(["object-oriented programming", "oop", "object-oriented programming (oop)"])
         if "api" in s.lower():
             resume_skills_lower.extend(["rest api", "restful apis"])
 
@@ -149,15 +150,37 @@ def recommend_courses(resume_skills, job_desc_text):
             
     return missing_skills_found
 
-def calculate_match_score(resume_text, job_desc_text):
-    try:
-        documents = [resume_text, job_desc_text]
-        vectorizer = TfidfVectorizer(stop_words='english')
-        tfidf_matrix = vectorizer.fit_transform(documents)
-        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        return round(float(similarity[0][0]) * 100, 2)
-    except ValueError:
-        return 0.0
+def calculate_match_score(resume_skills, job_desc_text):
+    lowered_jd = " " + " ".join(job_desc_text.lower().split()) + " "
+    target_skills_in_jd = 0
+    matched_skills = 0
+    
+    skill_check_list = [
+        ('java', ['java']), ('python', ['python']), ('c++', ['c++']), ('javascript', ['javascript']),
+        ('data structures', ['data structures']), ('algorithms', ['algorithms']),
+        ('object-oriented programming (oop)', ['object-oriented', 'oop', 'object oriented']),
+        ('sql', ['sql']), ('mysql', ['mysql']), ('mongodb', ['mongodb']),
+        ('html', ['html']), ('css', ['css']), ('restful apis', ['restful', 'api', 'apis']),
+        ('git', ['git']), ('github', ['github']), ('problem-solving', ['problem-solving', 'problem solving']),
+        ('analytical thinking', ['analytical thinking', 'analytical']), ('communication', ['communication']),
+        ('teamwork', ['teamwork']), ('collaboration', ['collaboration']), ('adaptability', ['adaptability']),
+        ('willingness to learn', ['willingness to learn', 'willing to learn']), ('time management', ['time management'])
+    ]
+    
+    resume_skills_lower = [s.lower() for s in resume_skills]
+    
+    for formal_name, triggers in skill_check_list:
+        jd_demands_skill = any(t in lowered_jd for t in triggers)
+        if jd_demands_skill:
+            target_skills_in_jd += 1
+            has_skill = any(t in resume_skills_lower or formal_name in resume_skills_lower for t in triggers)
+            if has_skill:
+                matched_skills += 1
+                
+    if target_skills_in_jd == 0:
+        return 100.0
+        
+    return round((matched_skills / target_skills_in_jd) * 100, 2)
 
 
 # --- Streamlit UI Design ---
@@ -169,35 +192,3 @@ with st.sidebar:
     st.markdown("**Semester:** 7th Semester B.E./B.Tech")
     st.write("---")
 
-st.title("📊 AI Resume Analyzer & Parser")
-st.markdown("### *7th Semester Engineering Project*")
-st.write("---")
-
-uploaded_file = st.file_uploader("Upload Resume (PDF format only)", type=["pdf"])
-job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Software developer skilled in SQL...")
-
-if st.button("🚀 Analyze and Match Resume"):
-    if uploaded_file and job_description:
-        with st.spinner("Analyzing text patterns..."):
-            resume_text = extract_text_from_pdf(uploaded_file)
-            info = extract_resume_info(resume_text)
-            match_score = calculate_match_score(resume_text, job_description)
-            
-            st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("👤 Candidate Profile")
-                st.markdown(f"**Name:** {info['Name']}")
-                st.markdown(f"**Email:** {info['Email']}")
-                st.markdown(f"**Phone:** {info['Phone']}")
-            with col2:
-                st.subheader("🛠️ Extracted Skills")
-                if info['Skills']:
-                    st.success(", ".join(info['Skills']))
-                else:
-                    st.warning("No standard technical skills detected.")
-            
-            st.write("---")
-            st.subheader("📚 Upskilling & Course Recommendations")
-            
