@@ -12,16 +12,14 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def extract_name(text):
-    # Splits document text into clean lines to capture the candidate name line
+    # Splits text into lines to isolate the candidate name from the top section
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines:
         return "Not Found"
     
-    # Common headers to filter out from top-level metadata lines
     corrupt_words = {'resume', 'cv', 'curriculum', 'vitae', 'page', 'summary', 'profile'}
     
     for line in lines[:4]:
-        # Filter line arrays that contain digits, emails, or generic keywords
         if (len(line) < 30 and 
             not any(char.isdigit() for char in line) and 
             '@' not in line and 
@@ -58,7 +56,6 @@ def extract_resume_info(text):
             pattern = r'\b' + re.escape(skill) + r'\b'
             
         if re.search(pattern, lowered_text):
-            # Clean presentation name formatting transformations
             if skill in ['java', 'python', 'javascript', 'mysql', 'mongodb', 'github']:
                 display_name = skill.title()
             elif skill in ['sql', 'html', 'css', 'git', 'oop']:
@@ -82,7 +79,7 @@ def extract_resume_info(text):
     }
 
 def recommend_courses(resume_skills, job_desc_text):
-    # Complete course mapping catalog for Software Developer options
+    # Complete course mapping catalog for Software Developer skills
     course_bank = {
         'Java': ['Java Programming and Software Engineering Fundamentals (Coursera)', 'Java Masterclass (Udemy)'],
         'Python': ['Python for Everybody Specialization (Coursera)', 'Complete Python Bootcamp (Udemy)'],
@@ -112,7 +109,6 @@ def recommend_courses(resume_skills, job_desc_text):
     lowered_jd = " " + " ".join(job_desc_text.lower().split()) + " "
     resume_skills_lower = [s.lower() for s in resume_skills]
     
-    # Synonym backup routing tags
     for s in resume_skills:
         if "object-oriented" in s.lower() or "oop" in s.lower():
             resume_skills_lower.extend(["object-oriented programming", "oop"])
@@ -160,8 +156,7 @@ def calculate_match_score(resume_text, job_desc_text):
         base_score = round(float(similarity[0][0]) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
-        # Blends a token intersection calculation to stabilize raw keyword lists,
-        # keeping presentation scores logically high without breaking TF-IDF configurations.
+        # To fix the low score issue with short keyword inputs, we calculate word token overlap
         cleaned_jd = re.sub(r'[^a-zA-Z0-9\s+-]', ' ', job_desc_text.lower())
         jd_tokens = set([w for w in cleaned_jd.split() if len(w) > 1])
         
@@ -180,7 +175,6 @@ def calculate_match_score(resume_text, job_desc_text):
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="centered")
 
-# Professional Sidebar for 7th Sem Project Presentation (Your exact original)
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
@@ -200,3 +194,12 @@ if st.button("🚀 Analyze and Match Resume"):
         with st.spinner("Analyzing text patterns..."):
             resume_text = extract_text_from_pdf(uploaded_file)
             info = extract_resume_info(resume_text)
+            match_score = calculate_match_score(resume_text, job_description)
+            
+            # Match Score Card
+            st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
+            
+            # Display Extracted Data
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("📧 Contact Details")
