@@ -12,7 +12,6 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def extract_name(text):
-    # Splits text into lines to isolate the candidate name from the top section
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines:
         return "Not Found"
@@ -73,8 +72,8 @@ def extract_resume_info(text):
             
     return {
         "Name": extract_name(text),
-        "Email": email_list[0].strip() if email_list else "Not Found", 
-        "Phone": phone_list[0].strip() if phone_list else "Not Found", 
+        "Email": email_list[0] if email_list else "Not Found", 
+        "Phone": phone_list[0] if phone_list else "Not Found", 
         "Skills": list(set(extracted_skills))
     }
 
@@ -153,7 +152,7 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        base_score = round(float(similarity) * 100, 2)
+        base_score = round(float(similarity[0][0]) * 100, 2)
         
         # Step 2: HIGH MATCH SCORE OVERRIDE
         # Calculates token intersection to stabilize scores for short inputs
@@ -203,3 +202,5 @@ if st.button("🚀 Analyze and Match Resume"):
             # Display Extracted Data
             col1, col2 = st.columns(2)
             with col1:
+                st.subheader("📧 Contact Details")
+                st.markdown(f"**Name:** {info['Name']}")
