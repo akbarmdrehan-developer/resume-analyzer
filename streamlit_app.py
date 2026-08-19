@@ -5,27 +5,33 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-def extract_text_from_pdf(pdf_file):
+def extract_raw_text_from_pdf(pdf_file):
     reader = PdfReader(pdf_file)
     text = ""
     for page in reader.pages:
         extracted = page.extract_text()
         if extracted:
             text += extracted + "\n"
-
-    # Normalize unicode whitespace/non-breaking spaces to standard spaces
-    normalized_text = re.sub(r"\s+", " ", text)
-    return normalized_text
+    return text
 
 
-def extract_name(text):
+def extract_name(raw_text):
+    # Process line-by-line using natural PDF line breaks
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
 
     if not lines:
         return "Not Found"
 
-    for line in lines[:3]:
+    for line in lines[:5]:
+        # Skip line if it contains common section headers or metadata
+        if re.search(
+            r"\b(resume|curriculum|vitae|summary|experience|education|skills)\b",
+            line,
+            re.I,
+        ):
+            continue
+
         cleaned_line = re.sub(email_pattern, "", line)
         cleaned_line = re.sub(
             r"https?://\S+|www\.\S+|\+?\d[\d\s.-]{8,}", "", cleaned_line
@@ -41,16 +47,19 @@ def extract_name(text):
     return "Not Found"
 
 
-def extract_resume_info(text):
-    name = extract_name(text)
+def extract_resume_info(raw_text):
+    name = extract_name(raw_text)
+
+    # Normalize text for skill/phone matching after name extraction
+    normalized_text = re.sub(r"\s+", " ", raw_text)
 
     # Email extraction
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-    email = re.findall(email_pattern, text)
+    email = re.findall(email_pattern, normalized_text)
 
     # Phone extraction
     phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
-    phone_matches = re.findall(phone_pattern, text)
+    phone_matches = re.findall(phone_pattern, normalized_text)
 
     phone = "Not Found"
     for match in phone_matches:
@@ -81,7 +90,7 @@ def extract_resume_info(text):
         "problem solving",
     ]
 
-    lowered_text = text.lower()
+    lowered_text = normalized_text.lower()
     extracted_skills = []
 
     for skill in skill_bank:
@@ -94,6 +103,7 @@ def extract_resume_info(text):
         "Email": email[0] if email else "Not Found",
         "Phone": phone,
         "Skills": list(set(extracted_skills)),
+        "NormalizedText": normalized_text,
     }
 
 
@@ -162,7 +172,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except ValueError:
         tfidf_score = 0.0
 
-    # Direct 100% score override when all required skills exist in the candidate's profile
+    # Return 100% directly when all job skills are satisfied
     if required_skills and skill_score == 100.0:
         return 100.0
 
@@ -228,10 +238,10 @@ job_description = st.text_area(
 if st.button("🚀 Analyze and Match Resume"):
     if uploaded_file and job_description:
         with st.spinner("Analyzing text patterns..."):
-            resume_text = extract_text_from_pdf(uploaded_file)
-            info = extract_resume_info(resume_text)
+            raw_resume_text = extract_raw_text_from_pdf(uploaded_file)
+            info = extract_resume_info(raw_resume_text)
             match_score = calculate_match_score(
-                resume_text, job_description, info["Skills"]
+                info["NormalizedText"], job_description, info["Skills"]
             )
 
             st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
