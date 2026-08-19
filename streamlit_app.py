@@ -33,14 +33,14 @@ def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
-    # BULLETPROOF FIX: Safely pops the first element to bypass index copy-paste formatting issues
-    email = email_matches.pop(0).strip() if email_matches else "Not Found"
+    # BULLETPROOF NON-INDEXING FIX: Safely extracts the string using list slicing
+    email = "".join(email_matches[:1]).strip() if email_matches else "Not Found"
     
     # Extract Phone Numbers
     phone_pattern = r'\b(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
-    # BULLETPROOF FIX: Safely pops the first element to bypass index copy-paste formatting issues
-    phone = phone_matches.pop(0).strip() if phone_matches else "Not Found"
+    # BULLETPROOF NON-INDEXING FIX: Safely extracts the string using list slicing
+    phone = "".join(phone_matches[:1]).strip() if phone_matches else "Not Found"
     
     # Modern Software Developer Skill Bank
     skill_bank = [
