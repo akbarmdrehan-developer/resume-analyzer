@@ -12,51 +12,37 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def extract_name(text):
-    # Split text into lines and clean whitespace
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines:
         return "Not Found"
     
-    # Common words to filter out if they appear as the first line
     corrupt_words = {'resume', 'cv', 'curriculum', 'vitae', 'page', 'summary', 'profile'}
     
-    # Look at the first 3 lines to find a valid name structure
     for line in lines[:3]:
-        # Filter out lines that are too long, contain digits, emails, or resume headers
         if (len(line) < 30 and 
             not any(char.isdigit() for char in line) and 
             '@' not in line and 
             line.lower() not in corrupt_words):
-            # Clean up extra spaces inside the line
             name = re.sub(r'\s+', ' ', line)
             return name
             
     return "Not Found"
 
 def extract_resume_info(text):
-    # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
     email = email_matches[0].strip() if email_matches else "Not Found"
     
-    # Robust phone pattern catching standard 10-digit, spaced, hyphenated, and country code numbers
-    phone_pattern = r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+    phone_pattern = r'(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
     phone = phone_matches[0].strip() if phone_matches else "Not Found"
     
-    # Updated Skill Bank combining Hard Skills, Web Basics, Tools, and Soft Skills
     skill_bank = [
-        # Languages
         'java', 'python', 'c++', 'javascript',
-        # Core Concepts
         'data structures', 'algorithms', 'object-oriented programming', 'oop',
-        # Databases
         'sql', 'mysql', 'mongodb',
-        # Web Basics & APIs
         'html', 'css', 'restful apis', 'rest api',
-        # Tools & Platforms
         'git', 'github',
-        # Soft Skills & Professional Attributes
         'problem-solving', 'analytical thinking', 'communication', 
         'teamwork', 'collaboration', 'adaptability', 'willingness to learn', 'time management'
     ]
@@ -65,14 +51,12 @@ def extract_resume_info(text):
     extracted_skills = []
     
     for skill in skill_bank:
-        # Standardize skill matching boundaries safely
         if skill in ['c++', 'problem-solving']:
             pattern = re.escape(skill)
         else:
             pattern = r'\b' + re.escape(skill) + r'\b'
             
         if re.search(pattern, lowered_text):
-            # Clean formatting presentation string conversions
             if skill in ['java', 'python', 'javascript', 'mysql', 'mongodb', 'github']:
                 display_name = skill.title()
             elif skill in ['sql', 'html', 'css', 'git', 'oop']:
@@ -96,7 +80,6 @@ def extract_resume_info(text):
     }
 
 def recommend_courses(resume_skills, job_desc_text):
-    # Course Bank mapped explicitly to tracking keys
     course_bank = {
         'Java': ['Java Programming and Software Engineering Fundamentals (Coursera)', 'Java Masterclass (Udemy)'],
         'Python': ['Python for Everybody Specialization (Coursera)', 'Complete Python Bootcamp (Udemy)'],
@@ -125,7 +108,6 @@ def recommend_courses(resume_skills, job_desc_text):
     
     lowered_jd = job_desc_text.lower()
     
-    # Normalize candidate skills to lowercase for precise comparison tracking
     resume_skills_lower = []
     for s in resume_skills:
         resume_skills_lower.append(s.lower())
@@ -140,7 +122,6 @@ def recommend_courses(resume_skills, job_desc_text):
         check_name = skill_name.lower()
         matched = False
         
-        # Multi-variant matching criteria ensures courses render even on relaxed inputs
         if check_name == 'object-oriented programming (oop)':
             matched = ('object-oriented' in lowered_jd) or ('oop' in lowered_jd) or ('object oriented' in lowered_jd)
             is_missing = "oop" not in resume_skills_lower and "object-oriented programming" not in resume_skills_lower
@@ -179,7 +160,6 @@ def calculate_match_score(resume_text, job_desc_text):
 # --- Streamlit UI Design ---
 st.set_page_config(page_title="AI Resume Analyzer", page_icon="📊", layout="centered")
 
-# Professional Sidebar for 7th Sem Project Presentation
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
     st.markdown("**Project Title:** AI Resume Analyzer")
@@ -194,7 +174,30 @@ st.write("---")
 uploaded_file = st.file_uploader("Upload Resume (PDF format only)", type=["pdf"])
 job_description = st.text_area("Paste Job Description Here", height=150, placeholder="Looking for a Software developer skilled in SQL...")
 
-# FIXED: Indentation levels aligned seamlessly across the button execution workflow
 if st.button("🚀 Analyze and Match Resume"):
     if uploaded_file and job_description:
         with st.spinner("Analyzing text patterns..."):
+            resume_text = extract_text_from_pdf(uploaded_file)
+            info = extract_resume_info(resume_text)
+            match_score = calculate_match_score(resume_text, job_description)
+            
+            st.metric(label="🎯 Job Match Score", value=f"{match_score}%")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("👤 Candidate Profile")
+                st.markdown(f"**Name:** {info['Name']}")
+                st.markdown(f"**Email:** {info['Email']}")
+                st.markdown(f"**Phone:** {info['Phone']}")
+            with col2:
+                st.subheader("🛠️ Extracted Skills")
+                if info['Skills']:
+                    st.success(", ".join(info['Skills']))
+                else:
+                    st.warning("No standard technical skills detected.")
+            
+            st.write("---")
+            st.subheader("📚 Upskilling & Course Recommendations")
+            st.markdown("Based on the target Job Description, acquire these missing skills to maximize your score:")
+            
+            recommended_courses_list = recommend_courses(info['Skills'], job_description)
