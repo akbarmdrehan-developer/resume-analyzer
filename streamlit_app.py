@@ -36,11 +36,13 @@ def extract_name(text):
 def extract_resume_info(text):
     # Extract Email using Regex
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-    email = re.findall(email_pattern, text)
+    email_matches = re.findall(email_pattern, text)
+    email = email_matches[0].strip() if email_matches else "Not Found"
     
     # Robust phone pattern catching standard 10-digit, spaced, hyphenated, and country code numbers
     phone_pattern = r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
-    phone = re.findall(phone_pattern, text)
+    phone_matches = re.findall(phone_pattern, text)
+    phone = phone_matches[0].strip() if phone_matches else "Not Found"
     
     # Updated Skill Bank combining Hard Skills, Web Basics, Tools, and Soft Skills
     skill_bank = [
@@ -88,8 +90,8 @@ def extract_resume_info(text):
             
     return {
         "Name": extract_name(text),
-        "Email": email[0] if email else "Not Found", 
-        "Phone": phone[0].strip() if phone else "Not Found", 
+        "Email": email, 
+        "Phone": phone, 
         "Skills": list(set(extracted_skills))
     }
 
@@ -197,4 +199,3 @@ if st.button("🚀 Analyze and Match Resume"):
     if uploaded_file and job_description:
         with st.spinner("Analyzing text patterns..."):
             resume_text = extract_text_from_pdf(uploaded_file)
-            info = extract_resume_info(resume_text)
