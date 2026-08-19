@@ -13,26 +13,30 @@ def extract_text_from_pdf(pdf_file):
         if extracted:
             text += extracted + "\n"
 
-    # Normalize all unicode whitespace/non-breaking spaces to standard spaces
+    # Normalize unicode whitespace/non-breaking spaces to standard spaces
     normalized_text = re.sub(r"\s+", " ", text)
     return normalized_text
 
 
 def extract_name(text):
+    email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     lines = [line.strip() for line in text.split("\n") if line.strip()]
-    for line in lines[:5]:
-        if not re.search(
-            r"@|http|www|\d|\b(resume|curriculum|vitae)\b", line, re.I
-        ):
-            if re.match(
-                r"^[A-Z][a-zA-Z'.-]+(?:\s+[A-Z][a-zA-Z'.-]+){1,3}$", line
-            ):
-                return line.title()
-    # Fallback to simple first line match if standard header layout is used
-    if lines:
-        possible_name = lines[0].split("|")[0].strip()
-        if len(possible_name.split()) <= 4:
-            return possible_name.title()
+
+    if not lines:
+        return "Not Found"
+
+    for line in lines[:3]:
+        cleaned_line = re.sub(email_pattern, "", line)
+        cleaned_line = re.sub(
+            r"https?://\S+|www\.\S+|\+?\d[\d\s.-]{8,}", "", cleaned_line
+        )
+        cleaned_line = re.sub(r"[|•·–-]", " ", cleaned_line)
+        cleaned_line = re.sub(r"\s+", " ", cleaned_line).strip()
+
+        words = cleaned_line.split()
+        if 2 <= len(words) <= 4 and all(w.isalpha() for w in words):
+            return " ".join(words).title()
+
     return "Not Found"
 
 
@@ -43,11 +47,10 @@ def extract_resume_info(text):
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     email = re.findall(email_pattern, text)
 
-    # Flexible phone extraction pattern handling spaces, international prefixes, and dashes
+    # Phone extraction
     phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
     phone_matches = re.findall(phone_pattern, text)
 
-    # Filter matches to ensure a realistic phone digit count (10-13 digits)
     phone = "Not Found"
     for match in phone_matches:
         digits_only = re.sub(r"\D", "", match)
@@ -55,23 +58,26 @@ def extract_resume_info(text):
             phone = match.strip()
             break
 
-    # Developer Skill Bank
+    # Beginner Software Developer Skill Bank
     skill_bank = [
         "python",
         "java",
         "c++",
+        "c",
         "javascript",
-        "sql",
-        "react",
-        "django",
-        "spring boot",
         "html",
         "css",
+        "bootstrap",
+        "sql",
+        "mysql",
         "git",
-        "aws",
+        "github",
         "data structures",
         "algorithms",
-        "system design",
+        "oop",
+        "object oriented programming",
+        "rest api",
+        "problem solving",
     ]
 
     lowered_text = text.lower()
@@ -102,19 +108,18 @@ def calculate_match_score(resume_text, job_desc_text):
 
 
 def get_course_recommendations(resume_skills, job_desc_text, match_score):
+    # Beginner-focused course database
     course_database = {
-        "Python": "Python for Everybody Specialization (Coursera)",
-        "Java": "Java Programming Fundamentals (Coursera)",
-        "React": "React - The Complete Guide (Udemy)",
-        "Node.Js": "The Complete Node.js Developer Course (Udemy)",
-        "Docker": "Docker & Kubernetes: The Practical Guide (Udemy)",
-        "Aws": "AWS Certified Developer Associate (Udemy)",
-        "Sql": "The Complete SQL Bootcamp (Udemy)",
-        "Spring Boot": "Spring Boot Fundamentals (Pluralsight)",
-        "System Design": "Grokking the System Design Interview (Educative.io)",
-        "Data Structures": "Data Structures & Algorithms Specialization (Coursera)",
-        "Git": "Git Complete: The Definitive Guide (Udemy)",
-        "Kubernetes": "Certified Kubernetes Administrator (Linux Foundation)",
+        "Python": "Python Basics for Data Science & Software (Coursera)",
+        "Java": "Java Programming: Solving Problems with Software (Coursera)",
+        "Javascript": "JavaScript Basics & DOM Manipulation (freeCodeCamp)",
+        "Sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
+        "Git": "Version Control with Git and GitHub for Beginners (Udemy)",
+        "Data Structures": "Data Structures & Algorithms in Python/Java (GeeksforGeeks / Coursera)",
+        "Algorithms": "Algorithms Specialization for Beginners (Coursera)",
+        "Html": "Responsive Web Design Certification (freeCodeCamp)",
+        "Css": "CSS Basics and Flexbox (freeCodeCamp / Scrimba)",
+        "Oop": "Object Oriented Programming Fundamentals (Udemy)",
     }
 
     job_text_lower = job_desc_text.lower()
@@ -131,14 +136,14 @@ def get_course_recommendations(resume_skills, job_desc_text, match_score):
             missing_skills.append(skill)
             recommendations.append(course)
 
-    # General recommendations if match score is low (< 50%)
+    # Entry-level fallback recommendations if match score is low
     if match_score < 50.0 and not recommendations:
-        missing_skills.append("Core Software Development & System Design")
+        missing_skills.append("Software Development Fundamentals")
         recommendations.extend(
             [
-                "Data Structures and Algorithms Specialization (Coursera)",
-                "System Design Fundamentals (Educative.io)",
-                "Full Stack Web Development Bootcamp (Udemy)",
+                "CS50's Introduction to Computer Science (Harvard / edX)",
+                "Data Structures and Algorithms for Beginners (freeCodeCamp)",
+                "Git & GitHub Starter Crash Course (Udemy)",
             ]
         )
 
@@ -163,7 +168,11 @@ st.write("---")
 uploaded_file = st.file_uploader(
     "Upload Resume (PDF format only)", type=["pdf"]
 )
-job_description = st.text_area("Paste Job Description Here", height=150)
+job_description = st.text_area(
+    "Paste Job Description Here",
+    height=150,
+    placeholder="Looking for a Fresh Graduate / Junior Software Developer proficient in Python, SQL, Git, and OOP concepts...",
+)
 
 if st.button("🚀 Analyze and Match Resume"):
     if uploaded_file and job_description:
@@ -186,7 +195,7 @@ if st.button("🚀 Analyze and Match Resume"):
                 if info["Skills"]:
                     st.success(", ".join(info["Skills"]))
                 else:
-                    st.warning("No matching developer skills detected.")
+                    st.warning("No beginner developer skills detected.")
 
             st.write("---")
 
@@ -198,13 +207,13 @@ if st.button("🚀 Analyze and Match Resume"):
             if match_score < 50.0 or rec_courses:
                 if missing_skills:
                     st.info(
-                        f"Target skills/areas to focus on: **{', '.join(missing_skills)}**"
+                        f"Recommended skill areas to focus on: **{', '.join(missing_skills)}**"
                     )
                 for i, course in enumerate(rec_courses, 1):
                     st.write(f"**{i}.** {course}")
             else:
                 st.success(
-                    "🎉 Great job! Your technical skill profile matches the core requirements of this job description."
+                    "🎉 Great job! Your entry-level skill profile matches the core requirements of this job description."
                 )
     else:
         st.error(
