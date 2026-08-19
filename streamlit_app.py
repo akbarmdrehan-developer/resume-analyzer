@@ -10,7 +10,6 @@ def extract_text_from_pdf(pdf_file):
     for page in reader.pages:
         page_text = page.extract_text()
         if page_text:
-            # Flatten multi-space tabular gaps into uniform line blocks
             text += "\n".join([line.strip() for line in page_text.split('\n') if line.strip()]) + "\n"
     return text
 
@@ -32,16 +31,12 @@ def extract_name(text):
     return "Not Found"
 
 def extract_resume_info(text):
-    # Extract Email safely
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
     email_matches = re.findall(email_pattern, text)
-    # PERMANENT FIX: Extract the string item at index 0 before stripping
     email = email_matches[0].strip() if email_matches else "Not Found"
     
-    # Extract Phone numbers cleanly
     phone_pattern = r'(?:\+?\d{1,3}[-. \s]?)?\(?\d{3}\)?[-. \s]?\d{3}[-. \s]?\d{4}\b'
     phone_matches = re.findall(phone_pattern, text)
-    # PERMANENT FIX: Extract the string item at index 0 before stripping
     phone = phone_matches[0].strip() if phone_matches else "Not Found"
     
     skill_bank = [
@@ -160,7 +155,6 @@ def calculate_match_score(resume_text, job_desc_text):
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform(documents)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
-        # PERMANENT FIX: Safely extract the matrix element value using index [0][0]
         return round(float(similarity[0][0]) * 100, 2)
     except ValueError:
         return 0.0
@@ -198,3 +192,12 @@ if st.button("🚀 Analyze and Match Resume"):
                 st.markdown(f"**Email:** {info['Email']}")
                 st.markdown(f"**Phone:** {info['Phone']}")
             with col2:
+                st.subheader("🛠️ Extracted Skills")
+                if info['Skills']:
+                    st.success(", ".join(info['Skills']))
+                else:
+                    st.warning("No standard technical skills detected.")
+            
+            st.write("---")
+            st.subheader("📚 Upskilling & Course Recommendations")
+            
