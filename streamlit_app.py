@@ -374,7 +374,7 @@ if st.button("🚀 Analyze and Match Resume"):
                         for course in rec_tech:
                             st.write(f"- {course}")
                     else:
-                        st.success("✅ Technical skills match all JD requirements!")
+                        st.success("✅ Technical skills match all Software Developer requirements!")
 
                     st.write("---")
 
