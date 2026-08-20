@@ -131,33 +131,32 @@ def extract_resume_info(raw_text):
         "NormalizedText": clean_single_line,
     }
 
-
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
     job_desc_clean = re.sub(r"[^\w\s+]", " ", job_desc_text.lower())
     resume_text_clean = re.sub(r"[^\w\s+]", " ", resume_text.lower())
 
-    # Map candidate skills to canonical forms
+    # 1. Normalize resume skills using synonyms
     normalized_resume_skills = set()
     for s in resume_skills:
         s_lower = s.lower().strip()
         canonical_s = SYNONYMS.get(s_lower, s_lower)
         normalized_resume_skills.add(canonical_s)
 
-    # Extract required skills from Job Description
+    # 2. Extract skills explicitly required in the Job Description
     jd_skills = extract_skills_from_text(job_desc_text)
     canonical_required = set()
     for req in jd_skills:
         canonical = SYNONYMS.get(req, req)
         canonical_required.add(canonical)
 
-    # 1. Skill Coverage Calculation
+    # 3. Calculate Skill Match Percentage
     if canonical_required:
         matched_count = sum(
             1 for req in canonical_required if req in normalized_resume_skills
         )
         skill_score = (matched_count / len(canonical_required)) * 100.0
     else:
-        # Fallback: compare overlap of candidate skills with total words in JD
+        # Fallback if JD has no predefined database skills: check candidate skills inside JD text
         if normalized_resume_skills:
             matched_count = sum(
                 1 for s in normalized_resume_skills if s in job_desc_clean
@@ -168,7 +167,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         else:
             skill_score = 0.0
 
-    # 2. Text Similarity Calculation
+    # 4. Calculate Text Similarity (TF-IDF)
     try:
         documents = [resume_text_clean, job_desc_clean]
         vectorizer = TfidfVectorizer(
@@ -178,21 +177,21 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         vector_sim = float(
             cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         )
-        tfidf_score = vector_sim * 100.0
+        # Normalize low cosine similarity values so text formatting doesn't ruin the score
+        tfidf_score = min(100.0, vector_sim * 250.0)
     except Exception:
-        tfidf_score = 0.0
+        tfidf_score = skill_score
 
-    # 3. Dynamic Weighting Formula
-    # Skill Coverage accounts for 90% of total score, text similarity accounts for 10%
-    if skill_score == 100.0:
-        final_score = 100.0
-    elif skill_score >= 80.0:
-        final_score = max(90.0, (skill_score * 0.90) + (tfidf_score * 0.10))
+    # 5. Final Score Calculation
+    if skill_score >= 80.0:
+        # If candidate has matched almost all/all skills, grant top match
+        final_score = max(90.0, (skill_score * 0.85) + (tfidf_score * 0.15))
+    elif skill_score > 0:
+        final_score = (skill_score * 0.80) + (tfidf_score * 0.20)
     else:
-        final_score = (skill_score * 0.90) + (tfidf_score * 0.10)
+        final_score = tfidf_score * 0.50
 
     return min(round(final_score, 2), 100.0)
-
 
 def get_course_recommendations(resume_skills, job_desc_text):
     job_text_clean = re.sub(r"[^\w\s+]", " ", job_desc_text.lower())
