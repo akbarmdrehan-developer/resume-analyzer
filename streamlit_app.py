@@ -4,6 +4,37 @@ from pypdf import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+# --- Core Skill Bank and Course Mapping ---
+SKILL_DATABASE = {
+    "python": "Python Basics for Data Science & Software (Coursera)",
+    "java": "Java Programming: Solving Problems with Software (Coursera)",
+    "c++": "C++ Programming For Beginners (Udemy)",
+    "c": "C Programming Language Fundamentals (Pluralsight)",
+    "javascript": "JavaScript Basics & DOM Manipulation (freeCodeCamp)",
+    "html": "Responsive Web Design Certification (freeCodeCamp)",
+    "css": "CSS Basics and Flexbox (freeCodeCamp / Scrimba)",
+    "bootstrap": "Bootstrap 5 Responsive Web Design (Udemy)",
+    "sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
+    "mysql": "MySQL Database Development (Coursera)",
+    "git": "Version Control with Git and GitHub for Beginners (Udemy)",
+    "github": "Git & GitHub Crash Course (freeCodeCamp)",
+    "data structures": "Data Structures & Algorithms (GeeksforGeeks)",
+    "algorithms": "Algorithms Specialization for Beginners (Coursera)",
+    "oop": "Object Oriented Programming Fundamentals (Udemy)",
+    "object oriented programming": "Object Oriented Programming Fundamentals (Udemy)",
+    "rest api": "REST API Design, Development & Management (Udemy)",
+    "problem solving": "Problem Solving Fundamentals (HackerRank)",
+}
+
+SYNONYMS = {
+    "oop": "object oriented programming",
+    "object oriented programming": "oop",
+    "git": "github",
+    "github": "git",
+    "sql": "mysql",
+    "mysql": "sql",
+}
+
 
 def extract_raw_text_from_pdf(pdf_file):
     reader = PdfReader(pdf_file)
@@ -16,7 +47,6 @@ def extract_raw_text_from_pdf(pdf_file):
 
 
 def extract_name(raw_text):
-    # Process line-by-line using natural PDF line breaks
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
 
@@ -24,7 +54,6 @@ def extract_name(raw_text):
         return "Not Found"
 
     for line in lines[:5]:
-        # Skip line if it contains common section headers or metadata
         if re.search(
             r"\b(resume|curriculum|vitae|summary|experience|education|skills)\b",
             line,
@@ -49,15 +78,11 @@ def extract_name(raw_text):
 
 def extract_resume_info(raw_text):
     name = extract_name(raw_text)
-
-    # Normalize text for skill/phone matching after name extraction
     normalized_text = re.sub(r"\s+", " ", raw_text)
 
-    # Email extraction
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     email = re.findall(email_pattern, normalized_text)
 
-    # Phone extraction
     phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
     phone_matches = re.findall(phone_pattern, normalized_text)
 
@@ -68,32 +93,10 @@ def extract_resume_info(raw_text):
             phone = match.strip()
             break
 
-    # Beginner Software Developer Skill Bank
-    skill_bank = [
-        "python",
-        "java",
-        "c++",
-        "c",
-        "javascript",
-        "html",
-        "css",
-        "bootstrap",
-        "sql",
-        "mysql",
-        "git",
-        "github",
-        "data structures",
-        "algorithms",
-        "oop",
-        "object oriented programming",
-        "rest api",
-        "problem solving",
-    ]
-
     lowered_text = normalized_text.lower()
     extracted_skills = []
 
-    for skill in skill_bank:
+    for skill in SKILL_DATABASE.keys():
         pattern = r"\b" + re.escape(skill) + r"\b"
         if re.search(pattern, lowered_text):
             extracted_skills.append(skill.lower())
@@ -108,40 +111,12 @@ def extract_resume_info(raw_text):
 
 
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
-    skill_bank = [
-        "python",
-        "java",
-        "c++",
-        "c",
-        "javascript",
-        "html",
-        "css",
-        "bootstrap",
-        "sql",
-        "mysql",
-        "git",
-        "github",
-        "data structures",
-        "algorithms",
-        "oop",
-        "object oriented programming",
-        "rest api",
-        "problem solving",
-    ]
-
-    synonyms = {
-        "oop": "object oriented programming",
-        "object oriented programming": "oop",
-        "git": "github",
-        "github": "git",
-        "sql": "mysql",
-        "mysql": "sql",
-    }
-
     job_desc_lower = job_desc_text.lower()
+
+    # Identify which skills from our database are present in the Job Description
     required_skills = [
         s
-        for s in skill_bank
+        for s in SKILL_DATABASE.keys()
         if re.search(r"\b" + re.escape(s) + r"\b", job_desc_lower)
     ]
 
@@ -152,15 +127,19 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         for req in required_skills:
             if (
                 req in resume_skills_lower
-                or synonyms.get(req) in resume_skills_lower
+                or SYNONYMS.get(req) in resume_skills_lower
             ):
                 matched_count += 1
+
+        # Direct 100% Match check: If candidate satisfies ALL required job skills
+        if matched_count == len(required_skills):
+            return 100.0
 
         skill_score = (matched_count / len(required_skills)) * 100
     else:
         skill_score = 100.0
 
-    # TF-IDF Vector Similarity
+    # Partial Match Calculation using TF-IDF Vector Similarity
     try:
         documents = [resume_text, job_desc_text]
         vectorizer = TfidfVectorizer(stop_words="english")
@@ -172,38 +151,28 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except ValueError:
         tfidf_score = 0.0
 
-    # Return 100% directly when all job skills are satisfied
-    if required_skills and skill_score == 100.0:
-        return 100.0
-
     final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
     return min(round(final_score, 2), 100.0)
 
 
-def get_course_recommendations(resume_skills, job_desc_text, match_score):
-    course_database = {
-        "python": "Python Basics for Data Science & Software (Coursera)",
-        "java": "Java Programming: Solving Problems with Software (Coursera)",
-        "javascript": "JavaScript Basics & DOM Manipulation (freeCodeCamp)",
-        "sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
-        "git": "Version Control with Git and GitHub for Beginners (Udemy)",
-        "data structures": "Data Structures & Algorithms in Python/Java (GeeksforGeeks / Coursera)",
-        "algorithms": "Algorithms Specialization for Beginners (Coursera)",
-        "html": "Responsive Web Design Certification (freeCodeCamp)",
-        "css": "CSS Basics and Flexbox (freeCodeCamp / Scrimba)",
-        "oop": "Object Oriented Programming Fundamentals (Udemy)",
-    }
-
+def get_course_recommendations(resume_skills, job_desc_text):
     job_text_lower = job_desc_text.lower()
     resume_skills_lower = [s.lower() for s in resume_skills]
 
     missing_skills = []
     recommendations = []
 
-    for skill, course in course_database.items():
-        if skill in job_text_lower and skill not in resume_skills_lower:
-            missing_skills.append(skill.title())
-            recommendations.append(course)
+    for skill, course in SKILL_DATABASE.items():
+        # If skill is required by Job Description
+        if re.search(r"\b" + re.escape(skill) + r"\b", job_text_lower):
+            # But missing in Resume (checking direct match + synonym)
+            if (
+                skill not in resume_skills_lower
+                and SYNONYMS.get(skill) not in resume_skills_lower
+            ):
+                if course not in recommendations:
+                    missing_skills.append(skill.title())
+                    recommendations.append(course)
 
     return missing_skills, recommendations
 
@@ -263,23 +232,22 @@ if st.button("🚀 Analyze and Match Resume"):
 
             st.write("---")
 
-            st.subheader("💡 Course Recommendations to Boost Match Score")
+            st.subheader("💡 Skill Upgrade & Course Recommendations")
             missing_skills, rec_courses = get_course_recommendations(
-                info["Skills"], job_description, match_score
+                info["Skills"], job_description
             )
 
-            if rec_courses:
-                if missing_skills:
-                    st.info(
-                        f"Recommended skill areas to focus on: **{', '.join(missing_skills)}**"
-                    )
+            if match_score == 100.0 or not rec_courses:
+                st.success(
+                    "🎉 Exceptional match! Your skill profile covers all core requirements detected in this job description."
+                )
+            else:
+                st.info(
+                    f"Missing Skill Areas to Focus On: **{', '.join(missing_skills)}**"
+                )
                 for i, course in enumerate(rec_courses, 1):
                     st.write(f"**{i}.** {course}")
-            else:
-                st.success(
-                    "🎉 Great job! Your skill profile covers all the core requirements found in this job description."
-                )
     else:
         st.error(
             "⚠️ Please provide both the resume PDF and the job description text."
-        )
+    )
