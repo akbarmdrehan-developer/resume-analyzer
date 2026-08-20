@@ -20,6 +20,7 @@ SKILL_DATABASE = {
     "sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
     "mysql": "MySQL Database Development (Coursera)",
     "rest api": "REST API Design, Development & Management (Udemy)",
+    "api": "REST API Design, Development & Management (Udemy)",
     # Computer Science & Tools
     "data structures": "Data Structures & Algorithms (GeeksforGeeks)",
     "algorithms": "Algorithms Specialization for Beginners (Coursera)",
@@ -37,11 +38,13 @@ SYNONYMS = {
     "github": "git",
     "sql": "mysql",
     "mysql": "sql",
+    "api": "rest api",
+    "rest api": "api",
 }
 
 
 def extract_raw_text_from_pdf(pdf_file):
-    """Safely extracts raw text preserving line breaks for contact metadata."""
+    """Extracts raw text preserving newlines for header metadata."""
     try:
         pdf_file.seek(0)
         reader = PdfReader(pdf_file)
@@ -86,6 +89,21 @@ def extract_name(raw_text):
     return "Not Found"
 
 
+def extract_skills_from_text(text):
+    """Extracts database skills present in text using word boundaries."""
+    text_clean = re.sub(r"[^\w\s+]", " ", text.lower())
+    extracted = []
+
+    for skill in SKILL_DATABASE.keys():
+        pattern = (
+            r"(?i)(?<![a-zA-Z0-9#+])" + re.escape(skill) + r"(?![a-zA-Z0-9#+])"
+        )
+        if re.search(pattern, text_clean):
+            extracted.append(skill.lower())
+
+    return list(set(extracted))
+
+
 def extract_resume_info(raw_text):
     name = extract_name(raw_text)
     clean_single_line = re.sub(r"\s+", " ", raw_text)
@@ -103,22 +121,13 @@ def extract_resume_info(raw_text):
             phone = match.strip()
             break
 
-    # Normalize punctuation for clean skill detection
-    normalized_for_skills = re.sub(r"[^\w\s+]", " ", clean_single_line.lower())
-    extracted_skills = []
-
-    for skill in SKILL_DATABASE.keys():
-        pattern = (
-            r"(?i)(?<![a-zA-Z0-9#+])" + re.escape(skill) + r"(?![a-zA-Z0-9#+])"
-        )
-        if re.search(pattern, normalized_for_skills):
-            extracted_skills.append(skill.lower())
+    extracted_skills = extract_skills_from_text(raw_text)
 
     return {
         "Name": name,
         "Email": email[0] if email else "Not Found",
         "Phone": phone,
-        "Skills": list(set(extracted_skills)),
+        "Skills": extracted_skills,
         "NormalizedText": clean_single_line,
     }
 
@@ -127,7 +136,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     job_desc_clean = re.sub(r"[^\w\s+]", " ", job_desc_text.lower())
     resume_text_clean = re.sub(r"[^\w\s+]", " ", resume_text.lower())
 
-    # Build canonical skill set for candidate
+    # Map candidate skills to canonical forms
     normalized_resume_skills = set()
     for s in resume_skills:
         s_lower = s.lower().strip()
@@ -135,37 +144,31 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         normalized_resume_skills.add(canonical_s)
 
     # Extract required skills from Job Description
-    raw_required_skills = []
-    for skill in SKILL_DATABASE.keys():
-        pattern = (
-            r"(?i)(?<![a-zA-Z0-9#+])" + re.escape(skill) + r"(?![a-zA-Z0-9#+])"
-        )
-        if re.search(pattern, job_desc_clean):
-            raw_required_skills.append(skill)
-
-    # Deduplicate canonical required skills
+    jd_skills = extract_skills_from_text(job_desc_text)
     canonical_required = set()
-    for req in raw_required_skills:
+    for req in jd_skills:
         canonical = SYNONYMS.get(req, req)
         canonical_required.add(canonical)
 
-    # ACCURATE PARTIAL SCORING CALCULATION
+    # 1. Skill Coverage Calculation
     if canonical_required:
         matched_count = sum(
             1 for req in canonical_required if req in normalized_resume_skills
         )
-        skill_score = (matched_count / len(canonical_required)) * 100
+        skill_score = (matched_count / len(canonical_required)) * 100.0
     else:
-        # If JD has no mapped skills from database, evaluate candidate skill presence in JD
+        # Fallback: compare overlap of candidate skills with total words in JD
         if normalized_resume_skills:
-            found_count = sum(
+            matched_count = sum(
                 1 for s in normalized_resume_skills if s in job_desc_clean
             )
-            skill_score = (found_count / len(normalized_resume_skills)) * 100
+            skill_score = (
+                matched_count / len(normalized_resume_skills)
+            ) * 100.0
         else:
             skill_score = 0.0
 
-    # TF-IDF Calculation
+    # 2. Text Similarity Calculation
     try:
         documents = [resume_text_clean, job_desc_clean]
         vectorizer = TfidfVectorizer(
@@ -175,20 +178,18 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         vector_sim = float(
             cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         )
-        tfidf_score = vector_sim * 100
+        tfidf_score = vector_sim * 100.0
     except Exception:
         tfidf_score = 0.0
 
-    # FINAL PROPORTIONAL SCORING LOGIC
-    if canonical_required:
-        if skill_score == 100.0:
-            # Full Match: Guarantee high score 95-100%
-            final_score = max(95.0, (100.0 * 0.85) + (tfidf_score * 0.15))
-        else:
-            # Partial Match: Scale strictly proportional to matched skill percentage
-            final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
+    # 3. Dynamic Weighting Formula
+    # Skill Coverage accounts for 90% of total score, text similarity accounts for 10%
+    if skill_score == 100.0:
+        final_score = 100.0
+    elif skill_score >= 80.0:
+        final_score = max(90.0, (skill_score * 0.90) + (tfidf_score * 0.10))
     else:
-        final_score = (skill_score * 0.50) + (tfidf_score * 0.50)
+        final_score = (skill_score * 0.90) + (tfidf_score * 0.10)
 
     return min(round(final_score, 2), 100.0)
 
@@ -243,7 +244,7 @@ st.set_page_config(
 
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
-    st.markdown("**Project Title:** AI Resume Analyzer & Parser ")
+    st.markdown("**Project Title:** AI Resume Analyzer & Parser")
     st.markdown("**Semester:** 7th Semester, B.Tech")
     st.write("---")
     st.markdown(
