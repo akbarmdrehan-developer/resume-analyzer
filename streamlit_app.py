@@ -29,6 +29,14 @@ SKILL_DATABASE = {
     "oop": "Object Oriented Programming Fundamentals (Udemy)",
     "object oriented programming": "Object Oriented Programming Fundamentals (Udemy)",
     "problem solving": "Problem Solving Fundamentals (HackerRank)",
+    # Essential Soft Skills
+    "communication": "Communication Skills for Engineers (Coursera)",
+    "teamwork": "Teamwork & Collaboration in Tech (LinkedIn Learning)",
+    "collaboration": "Effective Collaboration in Agile Teams (Coursera)",
+    "adaptability": "Adaptability & Agility in Software Development (Udemy)",
+    "time management": "Time Management for Software Developers (Pluralsight)",
+    "critical thinking": "Critical Thinking & Debugging Mindset (LinkedIn Learning)",
+    "agile": "Agile Development & Scrum Fundamentals (Coursera)",
 }
 
 SYNONYMS = {
@@ -40,11 +48,23 @@ SYNONYMS = {
     "mysql": "sql",
     "api": "rest api",
     "rest api": "api",
+    "teamwork": "collaboration",
+    "collaboration": "teamwork",
 }
+
+SOFT_SKILLS_KEYS = [
+    "communication",
+    "teamwork",
+    "collaboration",
+    "adaptability",
+    "time management",
+    "critical thinking",
+    "agile",
+]
 
 
 def extract_raw_text_from_pdf(pdf_file):
-    """Extracts raw text preserving newlines for header metadata."""
+    """Safely extracts raw text preserving line breaks for contact header parsing."""
     try:
         pdf_file.seek(0)
         reader = PdfReader(pdf_file)
@@ -59,7 +79,7 @@ def extract_raw_text_from_pdf(pdf_file):
 
 
 def extract_name(raw_text):
-    """Extracts candidate name by inspecting line structure."""
+    """Extracts candidate name by inspecting line-by-line structure."""
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
 
@@ -90,7 +110,7 @@ def extract_name(raw_text):
 
 
 def extract_skills_from_text(text):
-    """Extracts database skills present in text using word boundaries."""
+    """Extracts database skills present in text using boundary patterns."""
     text_clean = re.sub(r"[^\w\s+]", " ", text.lower())
     extracted = []
 
@@ -131,6 +151,7 @@ def extract_resume_info(raw_text):
         "NormalizedText": clean_single_line,
     }
 
+
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
     job_desc_clean = re.sub(r"[^\w\s+]", " ", job_desc_text.lower())
     resume_text_clean = re.sub(r"[^\w\s+]", " ", resume_text.lower())
@@ -142,8 +163,17 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         canonical_s = SYNONYMS.get(s_lower, s_lower)
         normalized_resume_skills.add(canonical_s)
 
-    # 2. Extract skills explicitly required in the Job Description
+    # 2. Extract skills explicitly required in Job Description (Tech + Soft)
     jd_skills = extract_skills_from_text(job_desc_text)
+    for soft_skill in SOFT_SKILLS_KEYS:
+        pattern = (
+            r"(?i)(?<![a-zA-Z0-9#+])"
+            + re.escape(soft_skill)
+            + r"(?![a-zA-Z0-9#+])"
+        )
+        if re.search(pattern, job_desc_clean):
+            jd_skills.append(soft_skill)
+
     canonical_required = set()
     for req in jd_skills:
         canonical = SYNONYMS.get(req, req)
@@ -156,7 +186,6 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         )
         skill_score = (matched_count / len(canonical_required)) * 100.0
     else:
-        # Fallback if JD has no predefined database skills: check candidate skills inside JD text
         if normalized_resume_skills:
             matched_count = sum(
                 1 for s in normalized_resume_skills if s in job_desc_clean
@@ -177,14 +206,12 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         vector_sim = float(
             cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         )
-        # Normalize low cosine similarity values so text formatting doesn't ruin the score
         tfidf_score = min(100.0, vector_sim * 250.0)
     except Exception:
         tfidf_score = skill_score
 
     # 5. Final Score Calculation
     if skill_score >= 80.0:
-        # If candidate has matched almost all/all skills, grant top match
         final_score = max(90.0, (skill_score * 0.85) + (tfidf_score * 0.15))
     elif skill_score > 0:
         final_score = (skill_score * 0.80) + (tfidf_score * 0.20)
@@ -192,6 +219,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         final_score = tfidf_score * 0.50
 
     return min(round(final_score, 2), 100.0)
+
 
 def get_course_recommendations(resume_skills, job_desc_text):
     job_text_clean = re.sub(r"[^\w\s+]", " ", job_desc_text.lower())
@@ -202,8 +230,10 @@ def get_course_recommendations(resume_skills, job_desc_text):
         canonical_s = SYNONYMS.get(s_lower, s_lower)
         normalized_resume_skills.add(canonical_s)
 
-    missing_skills = []
-    recommendations = []
+    missing_tech_skills = []
+    missing_soft_skills = []
+    tech_recommendations = []
+    soft_recommendations = []
 
     for skill, course in SKILL_DATABASE.items():
         pattern = (
@@ -212,28 +242,31 @@ def get_course_recommendations(resume_skills, job_desc_text):
         if re.search(pattern, job_text_clean):
             canonical_skill = SYNONYMS.get(skill, skill)
             if canonical_skill not in normalized_resume_skills:
-                if course not in recommendations:
-                    missing_skills.append(skill.title())
-                    recommendations.append(course)
+                if skill in SOFT_SKILLS_KEYS:
+                    if course not in soft_recommendations:
+                        missing_soft_skills.append(skill.title())
+                        soft_recommendations.append(course)
+                else:
+                    if course not in tech_recommendations:
+                        missing_tech_skills.append(skill.title())
+                        tech_recommendations.append(course)
 
-    if not missing_skills and not recommendations:
-        core_fallback_skills = [
-            "python",
-            "java",
-            "sql",
-            "git",
-            "data structures",
-            "rest api",
-        ]
-        for skill in core_fallback_skills:
-            canonical_skill = SYNONYMS.get(skill, skill)
-            if canonical_skill not in normalized_resume_skills:
-                course = SKILL_DATABASE[skill]
-                if course not in recommendations:
-                    missing_skills.append(skill.title())
-                    recommendations.append(course)
+    # Fallback soft skill recommendations if none were explicitly mentioned in JD
+    if not missing_soft_skills:
+        for soft_key in ["communication", "teamwork", "agile"]:
+            canonical_soft = SYNONYMS.get(soft_key, soft_key)
+            if canonical_soft not in normalized_resume_skills:
+                course = SKILL_DATABASE[soft_key]
+                if course not in soft_recommendations:
+                    missing_soft_skills.append(soft_key.title())
+                    soft_recommendations.append(course)
 
-    return missing_skills, recommendations
+    return (
+        missing_tech_skills,
+        tech_recommendations,
+        missing_soft_skills,
+        soft_recommendations,
+    )
 
 
 # --- Streamlit UI Design ---
@@ -260,7 +293,7 @@ uploaded_file = st.file_uploader(
 job_description = st.text_area(
     "Paste Job Description Here",
     height=150,
-    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, and Data Structures...",
+    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, communication, and Agile team environments...",
 )
 
 if st.button("🚀 Analyze and Match Resume"):
@@ -309,28 +342,43 @@ if st.button("🚀 Analyze and Match Resume"):
                             display_skills = [s.title() for s in info["Skills"]]
                             st.success(", ".join(display_skills))
                         else:
-                            st.warning("No beginner developer skills detected.")
+                            st.warning("No developer skills detected.")
 
                     st.write("---")
 
-                    st.subheader("💡 Skill Upgrade & Course Recommendations")
-                    missing_skills, rec_courses = get_course_recommendations(
+                    st.subheader("💡 Recommended Skill Upgrades")
+                    (
+                        missing_tech,
+                        rec_tech_courses,
+                        missing_soft,
+                        rec_soft_courses,
+                    ) = get_course_recommendations(
                         info["Skills"], job_description
                     )
 
-                    if rec_courses:
-                        st.info(
-                            f"Missing Skill Areas to Focus On: **{', '.join(missing_skills)}**"
+                    if rec_tech_courses:
+                        st.markdown(
+                            f"**🛠️ Missing Technical Skills:** {', '.join(missing_tech)}"
                         )
-                        for i, course in enumerate(rec_courses, 1):
-                            st.write(f"**{i}.** {course}")
-                    elif match_score >= 85.0:
-                        st.success(
-                            "🎉 Exceptional match! Your skill profile covers core requirements detected in this job description."
-                        )
+                        for course in rec_tech_courses:
+                            st.write(f"- {course}")
                     else:
-                        st.warning(
-                            "⚠️ Low score match. Try adding more relevant technical skills, project details, and keywords from the job description to your resume."
+                        st.success(
+                            "✅ Your technical skill coverage meets all JD requirements!"
                         )
+
+                    st.write("---")
+
+                    if rec_soft_courses:
+                        st.markdown(
+                            f"**🤝 Essential Soft Skills to Highlight:** {', '.join(missing_soft)}"
+                        )
+                        for course in rec_soft_courses:
+                            st.write(f"- {course}")
+                    else:
+                        st.success(
+                            "✅ Your soft skill profile matches key role expectations!"
+                        )
+
             except Exception as e:
                 st.error(f"⚠️ Error parsing PDF file: {str(e)}")
