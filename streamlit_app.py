@@ -207,13 +207,21 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except Exception:
         tfidf_score = skill_score
 
-    # 5. Final Score Calculation
-    if skill_score >= 80.0:
-        final_score = max(90.0, (skill_score * 0.85) + (tfidf_score * 0.15))
+    # 5. Proportional Final Score Calculation
+    if skill_score == 100.0:
+        final_score = 100.0  # Perfect match across all required skills
+    elif skill_score >= 80.0:
+        final_score = max(
+            90.0, (skill_score * 0.85) + (tfidf_score * 0.15)
+        )  # Strong match
     elif skill_score > 0:
-        final_score = (skill_score * 0.80) + (tfidf_score * 0.20)
+        final_score = (
+            skill_score * 0.80
+        ) + (
+            tfidf_score * 0.20
+        )  # Moderate/partial match proportional to overlap
     else:
-        final_score = tfidf_score * 0.50
+        final_score = tfidf_score * 0.50  # Low match baseline
 
     return min(round(final_score, 2), 100.0)
 
@@ -271,7 +279,7 @@ st.set_page_config(
 
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
-    st.markdown("**Project Title:** AI Resume Analyzer & Parser")
+    st.markdown("**Project Title:** AI Resume Analyzer & Analyzer")
     st.markdown("**Semester:** 7th Semester, B.Tech")
     st.write("---")
     st.markdown(
