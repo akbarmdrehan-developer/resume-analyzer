@@ -119,32 +119,45 @@ def extract_resume_info(raw_text):
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
     job_desc_lower = job_desc_text.lower()
 
-    # Identify database skills present in the Job Description
-    required_skills = [
+    # Normalize resume skills using synonym mapping to prevent duplicate penalty
+    normalized_resume_skills = set()
+    for s in resume_skills:
+        s_lower = s.lower()
+        normalized_resume_skills.add(s_lower)
+        if s_lower in SYNONYMS:
+            normalized_resume_skills.add(SYNONYMS[s_lower])
+
+    # Identify distinct database skills required by Job Description
+    raw_required_skills = [
         s
         for s in SKILL_DATABASE.keys()
         if re.search(r"\b" + re.escape(s) + r"\b", job_desc_lower)
     ]
 
-    resume_skills_lower = [s.lower() for s in resume_skills]
+    # Deduplicate required skills using canonical mapping
+    canonical_required = set()
+    for req in raw_required_skills:
+        canonical = SYNONYMS.get(req, req)
+        canonical_required.add(canonical)
 
-    if required_skills:
+    if canonical_required:
         matched_count = 0
-        for req in required_skills:
+        for req in canonical_required:
             if (
-                req in resume_skills_lower
-                or SYNONYMS.get(req) in resume_skills_lower
+                req in normalized_resume_skills
+                or SYNONYMS.get(req) in normalized_resume_skills
             ):
                 matched_count += 1
 
-        skill_score = (matched_count / len(required_skills)) * 100
+        skill_score = (matched_count / len(canonical_required)) * 100
     else:
-        # Fallback: calculate skill score based on candidate skills present in JD
-        if resume_skills_lower:
+        if normalized_resume_skills:
             found_in_jd = sum(
-                1 for s in resume_skills_lower if s in job_desc_lower
+                1 for s in normalized_resume_skills if s in job_desc_lower
             )
-            skill_score = (found_in_jd / len(resume_skills_lower)) * 100
+            skill_score = (
+                found_in_jd / len(normalized_resume_skills)
+            ) * 100
         else:
             skill_score = 0.0
 
@@ -160,12 +173,10 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except ValueError:
         tfidf_score = 0.0
 
-    # --- ACCURATE SCORING FIX ---
-    # If candidate satisfies 100% of required skills, ensure a high match score (>=95%)
-    if required_skills and skill_score == 100.0:
-        final_score = max(95.0, (100.0 * 0.85) + (tfidf_score * 0.15))
+    # Final Weighted Calculation
+    if canonical_required and skill_score >= 90.0:
+        final_score = max(90.0, (skill_score * 0.85) + (tfidf_score * 0.15))
     else:
-        # Standard weighted calculation: 85% Skill Coverage, 15% Text Similarity
         final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
 
     return min(round(final_score, 2), 100.0)
@@ -173,17 +184,24 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
 
 def get_course_recommendations(resume_skills, job_desc_text):
     job_text_lower = job_desc_text.lower()
-    resume_skills_lower = [s.lower() for s in resume_skills]
+
+    # Normalize resume skills using synonyms
+    normalized_resume_skills = set()
+    for s in resume_skills:
+        s_lower = s.lower()
+        normalized_resume_skills.add(s_lower)
+        if s_lower in SYNONYMS:
+            normalized_resume_skills.add(SYNONYMS[s_lower])
 
     missing_skills = []
     recommendations = []
 
-    # Primary check: scan for skills explicitly required by Job Description
+    # Check for skills explicitly required by Job Description
     for skill, course in SKILL_DATABASE.items():
         if re.search(r"\b" + re.escape(skill) + r"\b", job_text_lower):
             if (
-                skill not in resume_skills_lower
-                and SYNONYMS.get(skill) not in resume_skills_lower
+                skill not in normalized_resume_skills
+                and SYNONYMS.get(skill) not in normalized_resume_skills
             ):
                 if course not in recommendations:
                     missing_skills.append(skill.title())
@@ -201,8 +219,8 @@ def get_course_recommendations(resume_skills, job_desc_text):
         ]
         for skill in core_fallback_skills:
             if (
-                skill not in resume_skills_lower
-                and SYNONYMS.get(skill) not in resume_skills_lower
+                skill not in normalized_resume_skills
+                and SYNONYMS.get(skill) not in normalized_resume_skills
             ):
                 course = SKILL_DATABASE[skill]
                 if course not in recommendations:
@@ -243,7 +261,6 @@ if st.button("🚀 Analyze and Match Resume"):
     has_pdf = uploaded_file is not None
     has_jd = bool(job_description.strip())
 
-    # --- Conditional Feedback for Input Validation ---
     if not has_pdf and not has_jd:
         st.error(
             "⚠️ Please upload your Resume PDF and paste the Job Description text to begin analysis."
@@ -260,9 +277,11 @@ if st.button("🚀 Analyze and Match Resume"):
         with st.spinner("Analyzing text patterns..."):
             try:
                 raw_resume_text = extract_raw_text_from_pdf(uploaded_file)
-                
+
                 if not raw_resume_text.strip():
-                    st.error("⚠️ Could not extract text from this PDF. Please ensure it is a text-based PDF file.")
+                    st.error(
+                        "⚠️ Could not extract text from this PDF. Please ensure it is a text-based PDF file."
+                    )
                 else:
                     info = extract_resume_info(raw_resume_text)
                     match_score = calculate_match_score(
@@ -293,7 +312,6 @@ if st.button("🚀 Analyze and Match Resume"):
                         info["Skills"], job_description
                     )
 
-                    # Strictly isolated feedback logic
                     if rec_courses:
                         st.info(
                             f"Missing Skill Areas to Focus On: **{', '.join(missing_skills)}**"
