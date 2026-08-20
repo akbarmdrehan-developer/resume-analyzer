@@ -40,34 +40,23 @@ SYNONYMS = {
 }
 
 
-def clean_and_normalize_text(text):
-    """Fixes PDF extraction quirks: missing spaces after punctuation and line breaks."""
-    if not text:
-        return ""
-    # Add space after commas/periods if missing (e.g., "Python,SQL" -> "Python, SQL")
-    text = re.sub(r"([a-zA-Z0-9])([,.])([a-zA-Z0-9])", r"\1\2 \3", text)
-    # Replace all newlines and multiple spaces with a single space
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
 def extract_raw_text_from_pdf(pdf_file):
-    """Safely extracts text from uploaded PDF buffer."""
+    """Safely extracts raw text preserving original newlines for header metadata."""
     try:
-        pdf_file.seek(0)  # Always reset buffer pointer
+        pdf_file.seek(0)
         reader = PdfReader(pdf_file)
-        extracted_pages = []
+        text_pages = []
         for page in reader.pages:
             t = page.extract_text()
             if t:
-                extracted_pages.append(t)
-        raw_text = " ".join(extracted_pages)
-        return clean_and_normalize_text(raw_text)
+                text_pages.append(t)
+        return "\n".join(text_pages)
     except Exception:
         return ""
 
 
 def extract_name(raw_text):
+    """Extracts candidate name by looking at line-by-line structure."""
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
 
@@ -98,14 +87,17 @@ def extract_name(raw_text):
 
 
 def extract_resume_info(raw_text):
+    # Name extracted from original multiline text
     name = extract_name(raw_text)
-    clean_text = clean_and_normalize_text(raw_text)
+
+    # Standardize string spacing for email, phone, and skill matching
+    clean_single_line = re.sub(r"\s+", " ", raw_text)
 
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-    email = re.findall(email_pattern, clean_text)
+    email = re.findall(email_pattern, raw_text)
 
     phone_pattern = r"(?:\+?\d{1,3}[\s.-]*)?(?:\(?\d{2,5}\)?[\s.-]*)?\d{3,5}[\s.-]*\d{3,5}"
-    phone_matches = re.findall(phone_pattern, clean_text)
+    phone_matches = re.findall(phone_pattern, clean_single_line)
 
     phone = "Not Found"
     for match in phone_matches:
@@ -114,10 +106,10 @@ def extract_resume_info(raw_text):
             phone = match.strip()
             break
 
-    lowered_text = clean_text.lower()
+    lowered_text = clean_single_line.lower()
     extracted_skills = []
 
-    # Robust skill matching
+    # Check database skills using substring match
     for skill in SKILL_DATABASE.keys():
         if skill in lowered_text:
             extracted_skills.append(skill.lower())
@@ -127,15 +119,15 @@ def extract_resume_info(raw_text):
         "Email": email[0] if email else "Not Found",
         "Phone": phone,
         "Skills": list(set(extracted_skills)),
-        "NormalizedText": clean_text,
+        "NormalizedText": clean_single_line,
     }
 
 
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
-    job_desc_clean = clean_and_normalize_text(job_desc_text).lower()
-    resume_text_clean = clean_and_normalize_text(resume_text).lower()
+    job_desc_clean = re.sub(r"\s+", " ", job_desc_text.lower())
+    resume_text_clean = re.sub(r"\s+", " ", resume_text.lower())
 
-    # Map candidate skills + synonyms
+    # Build skill set with canonical mapped synonyms
     normalized_resume_skills = set()
     for s in resume_skills:
         s_lower = s.lower()
@@ -143,7 +135,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         if s_lower in SYNONYMS:
             normalized_resume_skills.add(SYNONYMS[s_lower])
 
-    # Find distinct skills required in Job Description
+    # Extract database skills present in the Job Description
     raw_required_skills = []
     for skill in SKILL_DATABASE.keys():
         if skill in job_desc_clean:
@@ -173,7 +165,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         else:
             skill_score = 0.0
 
-    # TF-IDF Calculation with fallbacks
+    # TF-IDF calculation
     try:
         documents = [resume_text_clean, job_desc_clean]
         vectorizer = TfidfVectorizer(
@@ -187,9 +179,8 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except Exception:
         tfidf_score = 0.0
 
-    # Score calculation logic
+    # Direct Override logic for matching skills
     if canonical_required and skill_score >= 80.0:
-        # High skill match: guarantee >= 95% final score
         final_score = max(95.0, (skill_score * 0.85) + (tfidf_score * 0.15))
     elif canonical_required:
         final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
@@ -200,7 +191,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
 
 
 def get_course_recommendations(resume_skills, job_desc_text):
-    job_text_lower = clean_and_normalize_text(job_desc_text).lower()
+    job_text_lower = re.sub(r"\s+", " ", job_desc_text.lower())
 
     normalized_resume_skills = set()
     for s in resume_skills:
