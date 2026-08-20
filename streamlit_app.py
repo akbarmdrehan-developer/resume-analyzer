@@ -115,11 +115,12 @@ def extract_resume_info(raw_text):
         "NormalizedText": normalized_text,
     }
 
-
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
-    job_desc_lower = job_desc_text.lower()
+    # Standardize input text whitespace to fix multi-word skill regex matching
+    job_desc_clean = re.sub(r"\s+", " ", job_desc_text.lower())
+    resume_text_clean = re.sub(r"\s+", " ", resume_text.lower())
 
-    # Normalize resume skills using synonym mapping to prevent duplicate penalty
+    # Build normalized resume skill set using synonym mapping
     normalized_resume_skills = set()
     for s in resume_skills:
         s_lower = s.lower()
@@ -127,19 +128,21 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         if s_lower in SYNONYMS:
             normalized_resume_skills.add(SYNONYMS[s_lower])
 
-    # Identify distinct database skills required by Job Description
-    raw_required_skills = [
-        s
-        for s in SKILL_DATABASE.keys()
-        if re.search(r"\b" + re.escape(s) + r"\b", job_desc_lower)
-    ]
+    # Identify distinct skills required by Job Description
+    raw_required_skills = []
+    for skill in SKILL_DATABASE.keys():
+        # Escape special programming characters like C++ safely
+        pattern = r"(?i)(?<![a-zA-Z0-9#+])" + re.escape(skill) + r"(?![a-zA-Z0-9#+])"
+        if re.search(pattern, job_desc_clean):
+            raw_required_skills.append(skill)
 
-    # Deduplicate required skills using canonical mapping
+    # Deduplicate required skills using canonical mappings
     canonical_required = set()
     for req in raw_required_skills:
         canonical = SYNONYMS.get(req, req)
         canonical_required.add(canonical)
 
+    # Calculate Skill Match Score
     if canonical_required:
         matched_count = 0
         for req in canonical_required:
@@ -151,33 +154,39 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
 
         skill_score = (matched_count / len(canonical_required)) * 100
     else:
+        # Fallback: Check candidate skills directly against JD text
         if normalized_resume_skills:
             found_in_jd = sum(
-                1 for s in normalized_resume_skills if s in job_desc_lower
+                1 for s in normalized_resume_skills if s in job_desc_clean
             )
-            skill_score = (
-                found_in_jd / len(normalized_resume_skills)
-            ) * 100
+            skill_score = (found_in_jd / len(normalized_resume_skills)) * 100
         else:
             skill_score = 0.0
 
-    # TF-IDF Vector Similarity Calculation
+    # TF-IDF Vector Similarity Calculation (Supports single-letter tokens like 'C')
     try:
-        documents = [resume_text, job_desc_text]
-        vectorizer = TfidfVectorizer(stop_words="english")
+        documents = [resume_text_clean, job_desc_clean]
+        vectorizer = TfidfVectorizer(
+            stop_words="english",
+            token_pattern=r"(?u)\b\w+\b",  # Matches 1+ char tokens (includes C, SQL, etc.)
+        )
         tfidf_matrix = vectorizer.fit_transform(documents)
         vector_sim = float(
             cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         )
         tfidf_score = vector_sim * 100
-    except ValueError:
+    except Exception:
         tfidf_score = 0.0
 
-    # Final Weighted Calculation
-    if canonical_required and skill_score >= 90.0:
+    # Final Score Calculation
+    if canonical_required and skill_score >= 80.0:
+        # High skill match override: guarantees >=90% score when skills match
         final_score = max(90.0, (skill_score * 0.85) + (tfidf_score * 0.15))
-    else:
+    elif canonical_required:
+        # Standard weighted score: 85% skill coverage + 15% text similarity
         final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
+    else:
+        final_score = skill_score
 
     return min(round(final_score, 2), 100.0)
 
