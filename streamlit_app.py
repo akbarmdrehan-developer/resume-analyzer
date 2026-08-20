@@ -27,8 +27,6 @@ SKILL_DATABASE = {
     "oop": "Object Oriented Programming Fundamentals (Udemy)",
     "object oriented programming": "Object Oriented Programming Fundamentals (Udemy)",
     "problem solving": "Problem Solving Fundamentals (HackerRank)",
-    "agile": "Agile Software Development & Frameworks (Coursera)",
-    "scrum": "Scrum Master & Sprint Planning Fundamentals (Udemy)",
     # 3. Essential Soft Skills
     "communication": "Communication Skills for Engineers (Coursera)",
     "teamwork": "Teamwork & Collaboration in Tech (LinkedIn Learning)",
@@ -49,8 +47,6 @@ SYNONYMS = {
     "rest api": "api",
     "teamwork": "collaboration",
     "collaboration": "teamwork",
-    "agile": "scrum",
-    "scrum": "agile",
 }
 
 # Skill Categorization Keys
@@ -60,8 +56,6 @@ METHODOLOGY_SKILLS_KEYS = [
     "oop",
     "object oriented programming",
     "problem solving",
-    "agile",
-    "scrum",
 ]
 
 SOFT_SKILLS_KEYS = [
@@ -294,7 +288,7 @@ uploaded_file = st.file_uploader(
 job_description = st.text_area(
     "Paste Job Description Here",
     height=150,
-    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, Agile/Scrum methodologies, and team collaboration...",
+    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, Data Structures, OOP, and team collaboration...",
 )
 
 if st.button("🚀 Analyze and Match Resume"):
@@ -370,7 +364,7 @@ if st.button("🚀 Analyze and Match Resume"):
                         for course in rec_method:
                             st.write(f"- {course}")
                     else:
-                        st.success("✅ Engineering methodologies match expectations!")
+                        st.success("✅ CS core concepts match expectations!")
 
                     st.write("---")
 
