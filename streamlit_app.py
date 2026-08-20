@@ -137,7 +137,7 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
 
         skill_score = (matched_count / len(required_skills)) * 100
     else:
-        # Fallback: calculate skill score based on how many extracted resume skills are in JD
+        # Fallback: calculate score based on candidate skills present in JD
         if resume_skills_lower:
             found_in_jd = sum(
                 1 for s in resume_skills_lower if s in job_desc_lower
@@ -169,12 +169,33 @@ def get_course_recommendations(resume_skills, job_desc_text):
     missing_skills = []
     recommendations = []
 
+    # Primary check: skills required by the job description
     for skill, course in SKILL_DATABASE.items():
         if re.search(r"\b" + re.escape(skill) + r"\b", job_text_lower):
             if (
                 skill not in resume_skills_lower
                 and SYNONYMS.get(skill) not in resume_skills_lower
             ):
+                if course not in recommendations:
+                    missing_skills.append(skill.title())
+                    recommendations.append(course)
+
+    # Fallback check: if no mapped skills are found in JD, recommend core missing skills
+    if not missing_skills and not recommendations:
+        core_fallback_skills = [
+            "python",
+            "java",
+            "sql",
+            "git",
+            "data structures",
+            "rest api",
+        ]
+        for skill in core_fallback_skills:
+            if (
+                skill not in resume_skills_lower
+                and SYNONYMS.get(skill) not in resume_skills_lower
+            ):
+                course = SKILL_DATABASE[skill]
                 if course not in recommendations:
                     missing_skills.append(skill.title())
                     recommendations.append(course)
@@ -213,6 +234,7 @@ if st.button("🚀 Analyze and Match Resume"):
     has_pdf = uploaded_file is not None
     has_jd = bool(job_description.strip())
 
+    # --- Specific Guidance for Missing Inputs ---
     if not has_pdf and not has_jd:
         st.error(
             "⚠️ Please upload your Resume PDF and paste the Job Description text to begin analysis."
@@ -226,6 +248,7 @@ if st.button("🚀 Analyze and Match Resume"):
             "⚠️ Resume uploaded! Please paste the Job Description text below to calculate your match score."
         )
     else:
+        # Full Analysis Execution
         with st.spinner("Analyzing text patterns..."):
             raw_resume_text = extract_raw_text_from_pdf(uploaded_file)
             info = extract_resume_info(raw_resume_text)
@@ -257,18 +280,17 @@ if st.button("🚀 Analyze and Match Resume"):
                 info["Skills"], job_description
             )
 
-            # Strict recommendation logic fix
-            if rec_courses:
+            if match_score >= 85.0 and not rec_courses:
+                st.success(
+                    "🎉 Exceptional match! Your skill profile covers core requirements detected in this job description."
+                )
+            elif rec_courses:
                 st.info(
                     f"Missing Skill Areas to Focus On: **{', '.join(missing_skills)}**"
                 )
                 for i, course in enumerate(rec_courses, 1):
                     st.write(f"**{i}.** {course}")
-            elif match_score >= 80.0:
-                st.success(
-                    "🎉 Exceptional match! Your skill profile covers all core requirements detected in this job description."
-                )
             else:
                 st.warning(
                     "⚠️ Low score match. Try adding more relevant technical skills, project details, and keywords from the job description to your resume."
-)
+    )
