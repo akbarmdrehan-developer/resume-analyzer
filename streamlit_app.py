@@ -41,7 +41,7 @@ SYNONYMS = {
 
 
 def extract_raw_text_from_pdf(pdf_file):
-    """Safely extracts raw text preserving original newlines for header metadata."""
+    """Safely extracts raw text preserving line breaks for contact metadata."""
     try:
         pdf_file.seek(0)
         reader = PdfReader(pdf_file)
@@ -56,7 +56,7 @@ def extract_raw_text_from_pdf(pdf_file):
 
 
 def extract_name(raw_text):
-    """Extracts candidate name by looking at line-by-line structure."""
+    """Extracts candidate name by inspecting line structure."""
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
 
@@ -87,10 +87,7 @@ def extract_name(raw_text):
 
 
 def extract_resume_info(raw_text):
-    # Name extracted from original multiline text
     name = extract_name(raw_text)
-
-    # Standardize string spacing for email, phone, and skill matching
     clean_single_line = re.sub(r"\s+", " ", raw_text)
 
     email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
@@ -106,12 +103,15 @@ def extract_resume_info(raw_text):
             phone = match.strip()
             break
 
-    lowered_text = clean_single_line.lower()
+    # Normalize punctuation for clean skill detection
+    normalized_for_skills = re.sub(r"[^\w\s+]", " ", clean_single_line.lower())
     extracted_skills = []
 
-    # Check database skills using substring match
     for skill in SKILL_DATABASE.keys():
-        if skill in lowered_text:
+        pattern = (
+            r"(?i)(?<![a-zA-Z0-9#+])" + re.escape(skill) + r"(?![a-zA-Z0-9#+])"
+        )
+        if re.search(pattern, normalized_for_skills):
             extracted_skills.append(skill.lower())
 
     return {
@@ -122,23 +122,19 @@ def extract_resume_info(raw_text):
         "NormalizedText": clean_single_line,
     }
 
+
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
-    job_desc_clean = re.sub(r"\s+", " ", job_desc_text.lower())
-    # Normalize punctuation so trailing periods like "Git." or "Structures." don't break matches
-    job_desc_clean = re.sub(r"[^\w\s+]", " ", job_desc_clean)
+    job_desc_clean = re.sub(r"[^\w\s+]", " ", job_desc_text.lower())
+    resume_text_clean = re.sub(r"[^\w\s+]", " ", resume_text.lower())
 
-    resume_text_clean = re.sub(r"\s+", " ", resume_text.lower())
-    resume_text_clean = re.sub(r"[^\w\s+]", " ", resume_text_clean)
-
-    # Normalize extracted resume skills
+    # Build canonical skill set for candidate
     normalized_resume_skills = set()
     for s in resume_skills:
         s_lower = s.lower().strip()
-        normalized_resume_skills.add(s_lower)
-        if s_lower in SYNONYMS:
-            normalized_resume_skills.add(SYNONYMS[s_lower])
+        canonical_s = SYNONYMS.get(s_lower, s_lower)
+        normalized_resume_skills.add(canonical_s)
 
-    # Extract required database skills from JD
+    # Extract required skills from Job Description
     raw_required_skills = []
     for skill in SKILL_DATABASE.keys():
         pattern = (
@@ -147,26 +143,25 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         if re.search(pattern, job_desc_clean):
             raw_required_skills.append(skill)
 
-    # Deduplicate required skills using canonical mapping
+    # Deduplicate canonical required skills
     canonical_required = set()
     for req in raw_required_skills:
         canonical = SYNONYMS.get(req, req)
         canonical_required.add(canonical)
 
+    # ACCURATE PARTIAL SCORING CALCULATION
     if canonical_required:
-        matched_count = 0
-        for req in canonical_required:
-            if (
-                req in normalized_resume_skills
-                or SYNONYMS.get(req) in normalized_resume_skills
-            ):
-                matched_count += 1
-
+        matched_count = sum(
+            1 for req in canonical_required if req in normalized_resume_skills
+        )
         skill_score = (matched_count / len(canonical_required)) * 100
     else:
-        # FIXED FALLBACK: Ensure skill score evaluates to 100% when skills are found
+        # If JD has no mapped skills from database, evaluate candidate skill presence in JD
         if normalized_resume_skills:
-            skill_score = 100.0
+            found_count = sum(
+                1 for s in normalized_resume_skills if s in job_desc_clean
+            )
+            skill_score = (found_count / len(normalized_resume_skills)) * 100
         else:
             skill_score = 0.0
 
@@ -184,36 +179,39 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except Exception:
         tfidf_score = 0.0
 
-    # Score Calculation: Guarantees 95%+ score when all required skills are matched
-    if canonical_required and skill_score >= 80.0:
-        final_score = max(95.0, (skill_score * 0.85) + (tfidf_score * 0.15))
-    elif canonical_required:
-        final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
+    # FINAL PROPORTIONAL SCORING LOGIC
+    if canonical_required:
+        if skill_score == 100.0:
+            # Full Match: Guarantee high score 95-100%
+            final_score = max(95.0, (100.0 * 0.85) + (tfidf_score * 0.15))
+        else:
+            # Partial Match: Scale strictly proportional to matched skill percentage
+            final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
     else:
-        final_score = max(skill_score, tfidf_score)
+        final_score = (skill_score * 0.50) + (tfidf_score * 0.50)
 
     return min(round(final_score, 2), 100.0)
 
 
 def get_course_recommendations(resume_skills, job_desc_text):
-    job_text_lower = re.sub(r"\s+", " ", job_desc_text.lower())
+    job_text_clean = re.sub(r"[^\w\s+]", " ", job_desc_text.lower())
 
     normalized_resume_skills = set()
     for s in resume_skills:
-        s_lower = s.lower()
-        normalized_resume_skills.add(s_lower)
-        if s_lower in SYNONYMS:
-            normalized_resume_skills.add(SYNONYMS[s_lower])
+        s_lower = s.lower().strip()
+        canonical_s = SYNONYMS.get(s_lower, s_lower)
+        normalized_resume_skills.add(canonical_s)
 
     missing_skills = []
     recommendations = []
 
     for skill, course in SKILL_DATABASE.items():
-        if skill in job_text_lower:
-            if (
-                skill not in normalized_resume_skills
-                and SYNONYMS.get(skill) not in normalized_resume_skills
-            ):
+        pattern = (
+            r"(?i)(?<![a-zA-Z0-9#+])" + re.escape(skill) + r"(?![a-zA-Z0-9#+])"
+        )
+        if re.search(pattern, job_text_clean):
+            canonical_skill = SYNONYMS.get(skill, skill)
+            if canonical_skill not in normalized_resume_skills:
                 if course not in recommendations:
                     missing_skills.append(skill.title())
                     recommendations.append(course)
@@ -228,10 +226,8 @@ def get_course_recommendations(resume_skills, job_desc_text):
             "rest api",
         ]
         for skill in core_fallback_skills:
-            if (
-                skill not in normalized_resume_skills
-                and SYNONYMS.get(skill) not in normalized_resume_skills
-            ):
+            canonical_skill = SYNONYMS.get(skill, skill)
+            if canonical_skill not in normalized_resume_skills:
                 course = SKILL_DATABASE[skill]
                 if course not in recommendations:
                     missing_skills.append(skill.title())
@@ -247,7 +243,7 @@ st.set_page_config(
 
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
-    st.markdown("**Project Title:** AI Resume Analyzer & Parser")
+    st.markdown("**Project Title:** AI Resume Analyzer & Parser ")
     st.markdown("**Semester:** 7th Semester, B.Tech")
     st.write("---")
     st.markdown(
