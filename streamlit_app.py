@@ -6,37 +6,36 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # --- Core Skill Bank and Course Mapping ---
 SKILL_DATABASE = {
-    # Core Languages
+    # 1. Core Technical Languages & Frameworks
     "python": "Python Basics for Data Science & Software (Coursera)",
     "java": "Java Programming: Solving Problems with Software (Coursera)",
     "c++": "C++ Programming For Beginners (Udemy)",
     "c": "C Programming Language Fundamentals (Pluralsight)",
     "javascript": "JavaScript Basics & DOM Manipulation (freeCodeCamp)",
-    # Web & UI Frameworks
     "html": "Responsive Web Design Certification (freeCodeCamp)",
     "css": "CSS Basics and Flexbox (freeCodeCamp / Scrimba)",
     "bootstrap": "Bootstrap 5 Responsive Web Design (Udemy)",
-    # Databases & Backend
     "sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
     "mysql": "MySQL Database Development (Coursera)",
     "rest api": "REST API Design, Development & Management (Udemy)",
     "api": "REST API Design, Development & Management (Udemy)",
-    # Computer Science & Tools
-    "data structures": "Data Structures & Algorithms (GeeksforGeeks)",
-    "algorithms": "Algorithms Specialization for Beginners (Coursera)",
     "git": "Version Control with Git and GitHub for Beginners (Udemy)",
     "github": "Git & GitHub Crash Course (freeCodeCamp)",
+    # 2. Engineering Methodologies & CS Core
+    "data structures": "Data Structures & Algorithms (GeeksforGeeks)",
+    "algorithms": "Algorithms Specialization for Beginners (Coursera)",
     "oop": "Object Oriented Programming Fundamentals (Udemy)",
     "object oriented programming": "Object Oriented Programming Fundamentals (Udemy)",
     "problem solving": "Problem Solving Fundamentals (HackerRank)",
-    # Essential Soft Skills
+    "agile": "Agile Software Development & Frameworks (Coursera)",
+    "scrum": "Scrum Master & Sprint Planning Fundamentals (Udemy)",
+    # 3. Essential Soft Skills
     "communication": "Communication Skills for Engineers (Coursera)",
     "teamwork": "Teamwork & Collaboration in Tech (LinkedIn Learning)",
     "collaboration": "Effective Collaboration in Agile Teams (Coursera)",
     "adaptability": "Adaptability & Agility in Software Development (Udemy)",
     "time management": "Time Management for Software Developers (Pluralsight)",
     "critical thinking": "Critical Thinking & Debugging Mindset (LinkedIn Learning)",
-    "agile": "Agile Development & Scrum Fundamentals (Coursera)",
 }
 
 SYNONYMS = {
@@ -50,7 +49,20 @@ SYNONYMS = {
     "rest api": "api",
     "teamwork": "collaboration",
     "collaboration": "teamwork",
+    "agile": "scrum",
+    "scrum": "agile",
 }
+
+# Skill Categorization Keys
+METHODOLOGY_SKILLS_KEYS = [
+    "data structures",
+    "algorithms",
+    "oop",
+    "object oriented programming",
+    "problem solving",
+    "agile",
+    "scrum",
+]
 
 SOFT_SKILLS_KEYS = [
     "communication",
@@ -59,7 +71,6 @@ SOFT_SKILLS_KEYS = [
     "adaptability",
     "time management",
     "critical thinking",
-    "agile",
 ]
 
 
@@ -163,16 +174,8 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         canonical_s = SYNONYMS.get(s_lower, s_lower)
         normalized_resume_skills.add(canonical_s)
 
-    # 2. Extract skills explicitly required in Job Description (Tech + Soft)
+    # 2. Extract skills explicitly required in Job Description
     jd_skills = extract_skills_from_text(job_desc_text)
-    for soft_skill in SOFT_SKILLS_KEYS:
-        pattern = (
-            r"(?i)(?<![a-zA-Z0-9#+])"
-            + re.escape(soft_skill)
-            + r"(?![a-zA-Z0-9#+])"
-        )
-        if re.search(pattern, job_desc_clean):
-            jd_skills.append(soft_skill)
 
     canonical_required = set()
     for req in jd_skills:
@@ -230,10 +233,9 @@ def get_course_recommendations(resume_skills, job_desc_text):
         canonical_s = SYNONYMS.get(s_lower, s_lower)
         normalized_resume_skills.add(canonical_s)
 
-    missing_tech_skills = []
-    missing_soft_skills = []
-    tech_recommendations = []
-    soft_recommendations = []
+    missing_tech, tech_recs = [], []
+    missing_method, method_recs = [], []
+    missing_soft, soft_recs = [], []
 
     for skill, course in SKILL_DATABASE.items():
         pattern = (
@@ -243,30 +245,29 @@ def get_course_recommendations(resume_skills, job_desc_text):
             canonical_skill = SYNONYMS.get(skill, skill)
             if canonical_skill not in normalized_resume_skills:
                 if skill in SOFT_SKILLS_KEYS:
-                    if course not in soft_recommendations:
-                        missing_soft_skills.append(skill.title())
-                        soft_recommendations.append(course)
+                    if course not in soft_recs:
+                        missing_soft.append(skill.title())
+                        soft_recs.append(course)
+                elif skill in METHODOLOGY_SKILLS_KEYS:
+                    if course not in method_recs:
+                        missing_method.append(skill.title())
+                        method_recs.append(course)
                 else:
-                    if course not in tech_recommendations:
-                        missing_tech_skills.append(skill.title())
-                        tech_recommendations.append(course)
+                    if course not in tech_recs:
+                        missing_tech.append(skill.title())
+                        tech_recs.append(course)
 
-    # Fallback soft skill recommendations if none were explicitly mentioned in JD
-    if not missing_soft_skills:
-        for soft_key in ["communication", "teamwork", "agile"]:
+    # Fallbacks for empty categories
+    if not missing_soft:
+        for soft_key in ["communication", "teamwork"]:
             canonical_soft = SYNONYMS.get(soft_key, soft_key)
             if canonical_soft not in normalized_resume_skills:
                 course = SKILL_DATABASE[soft_key]
-                if course not in soft_recommendations:
-                    missing_soft_skills.append(soft_key.title())
-                    soft_recommendations.append(course)
+                if course not in soft_recs:
+                    missing_soft.append(soft_key.title())
+                    soft_recs.append(course)
 
-    return (
-        missing_tech_skills,
-        tech_recommendations,
-        missing_soft_skills,
-        soft_recommendations,
-    )
+    return missing_tech, tech_recs, missing_method, method_recs, missing_soft, soft_recs
 
 
 # --- Streamlit UI Design ---
@@ -293,7 +294,7 @@ uploaded_file = st.file_uploader(
 job_description = st.text_area(
     "Paste Job Description Here",
     height=150,
-    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, communication, and Agile team environments...",
+    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, Agile/Scrum methodologies, and team collaboration...",
 )
 
 if st.button("🚀 Analyze and Match Resume"):
@@ -348,37 +349,38 @@ if st.button("🚀 Analyze and Match Resume"):
 
                     st.subheader("💡 Recommended Skill Upgrades")
                     (
-                        missing_tech,
-                        rec_tech_courses,
-                        missing_soft,
-                        rec_soft_courses,
-                    ) = get_course_recommendations(
-                        info["Skills"], job_description
-                    )
+                        m_tech, rec_tech,
+                        m_method, rec_method,
+                        m_soft, rec_soft
+                    ) = get_course_recommendations(info["Skills"], job_description)
 
-                    if rec_tech_courses:
-                        st.markdown(
-                            f"**🛠️ Missing Technical Skills:** {', '.join(missing_tech)}"
-                        )
-                        for course in rec_tech_courses:
+                    # 1. Tech Skills UI
+                    if rec_tech:
+                        st.markdown(f"**🛠️ Missing Technical Skills:** {', '.join(m_tech)}")
+                        for course in rec_tech:
                             st.write(f"- {course}")
                     else:
-                        st.success(
-                            "✅ Your technical skill coverage meets all JD requirements!"
-                        )
+                        st.success("✅ Technical skills match all JD requirements!")
 
                     st.write("---")
 
-                    if rec_soft_courses:
-                        st.markdown(
-                            f"**🤝 Essential Soft Skills to Highlight:** {', '.join(missing_soft)}"
-                        )
-                        for course in rec_soft_courses:
+                    # 2. Methodologies UI
+                    if rec_method:
+                        st.markdown(f"**⚙️ Methodologies & CS Core to Focus On:** {', '.join(m_method)}")
+                        for course in rec_method:
                             st.write(f"- {course}")
                     else:
-                        st.success(
-                            "✅ Your soft skill profile matches key role expectations!"
-                        )
+                        st.success("✅ Engineering methodologies match expectations!")
+
+                    st.write("---")
+
+                    # 3. Soft Skills UI
+                    if rec_soft:
+                        st.markdown(f"**🤝 Essential Soft Skills to Highlight:** {', '.join(m_soft)}")
+                        for course in rec_soft:
+                            st.write(f"- {course}")
+                    else:
+                        st.success("✅ Soft skill profile matches role expectations!")
 
             except Exception as e:
                 st.error(f"⚠️ Error parsing PDF file: {str(e)}")
