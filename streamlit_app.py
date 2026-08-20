@@ -6,23 +6,27 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # --- Core Skill Bank and Course Mapping ---
 SKILL_DATABASE = {
+    # Core Languages
     "python": "Python Basics for Data Science & Software (Coursera)",
     "java": "Java Programming: Solving Problems with Software (Coursera)",
     "c++": "C++ Programming For Beginners (Udemy)",
     "c": "C Programming Language Fundamentals (Pluralsight)",
     "javascript": "JavaScript Basics & DOM Manipulation (freeCodeCamp)",
+    # Web & UI Frameworks
     "html": "Responsive Web Design Certification (freeCodeCamp)",
     "css": "CSS Basics and Flexbox (freeCodeCamp / Scrimba)",
     "bootstrap": "Bootstrap 5 Responsive Web Design (Udemy)",
+    # Databases & Backend
     "sql": "Intro to SQL: Querying and Managing Data (Khan Academy / Udemy)",
     "mysql": "MySQL Database Development (Coursera)",
-    "git": "Version Control with Git and GitHub for Beginners (Udemy)",
-    "github": "Git & GitHub Crash Course (freeCodeCamp)",
+    "rest api": "REST API Design, Development & Management (Udemy)",
+    # Computer Science & Tools
     "data structures": "Data Structures & Algorithms (GeeksforGeeks)",
     "algorithms": "Algorithms Specialization for Beginners (Coursera)",
+    "git": "Version Control with Git and GitHub for Beginners (Udemy)",
+    "github": "Git & GitHub Crash Course (freeCodeCamp)",
     "oop": "Object Oriented Programming Fundamentals (Udemy)",
     "object oriented programming": "Object Oriented Programming Fundamentals (Udemy)",
-    "rest api": "REST API Design, Development & Management (Udemy)",
     "problem solving": "Problem Solving Fundamentals (HackerRank)",
 }
 
@@ -113,7 +117,7 @@ def extract_resume_info(raw_text):
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
     job_desc_lower = job_desc_text.lower()
 
-    # Identify which skills from our database are present in the Job Description
+    # Identify which skills from database are present in the Job Description
     required_skills = [
         s
         for s in SKILL_DATABASE.keys()
@@ -131,15 +135,12 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
             ):
                 matched_count += 1
 
-        # Direct 100% Match check: If candidate satisfies ALL required job skills
-        if matched_count == len(required_skills):
-            return 100.0
-
+        # Proportional skill match based on total required skills
         skill_score = (matched_count / len(required_skills)) * 100
     else:
-        skill_score = 100.0
+        skill_score = 0.0
 
-    # Partial Match Calculation using TF-IDF Vector Similarity
+    # TF-IDF Vector Similarity Calculation
     try:
         documents = [resume_text, job_desc_text]
         vectorizer = TfidfVectorizer(stop_words="english")
@@ -151,7 +152,12 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except ValueError:
         tfidf_score = 0.0
 
-    final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
+    # Dynamic Weighting Logic
+    if not required_skills:
+        final_score = tfidf_score
+    else:
+        final_score = (skill_score * 0.70) + (tfidf_score * 0.30)
+
     return min(round(final_score, 2), 100.0)
 
 
@@ -163,9 +169,7 @@ def get_course_recommendations(resume_skills, job_desc_text):
     recommendations = []
 
     for skill, course in SKILL_DATABASE.items():
-        # If skill is required by Job Description
         if re.search(r"\b" + re.escape(skill) + r"\b", job_text_lower):
-            # But missing in Resume (checking direct match + synonym)
             if (
                 skill not in resume_skills_lower
                 and SYNONYMS.get(skill) not in resume_skills_lower
@@ -184,8 +188,8 @@ st.set_page_config(
 
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
-    st.markdown("**Project Title:** AI Resume Analyzer")
-    st.markdown("**Semester:** 7th Semester B.Tech")
+    st.markdown("**Project Title:** AI Resume Analyzer & Parser")
+    st.markdown("**Semester:** 7th Semester, B.Tech")
     st.write("---")
     st.markdown(
         "💡 *Tip: Upload a clean PDF version of your resume for best extraction results.*"
@@ -205,7 +209,24 @@ job_description = st.text_area(
 )
 
 if st.button("🚀 Analyze and Match Resume"):
-    if uploaded_file and job_description:
+    has_pdf = uploaded_file is not None
+    has_jd = bool(job_description.strip())
+
+    # --- Conditional Feedback for Input Combinations ---
+    if not has_pdf and not has_jd:
+        st.error(
+            "⚠️ Please upload your Resume PDF and paste the Job Description text to begin analysis."
+        )
+    elif not has_pdf and has_jd:
+        st.warning(
+            "⚠️ Job Description detected! Please upload your Resume PDF to complete the matching process."
+        )
+    elif has_pdf and not has_jd:
+        st.warning(
+            "⚠️ Resume uploaded! Please paste the Job Description text below to calculate your match score."
+        )
+    else:
+        # Full Analysis Process
         with st.spinner("Analyzing text patterns..."):
             raw_resume_text = extract_raw_text_from_pdf(uploaded_file)
             info = extract_resume_info(raw_resume_text)
@@ -237,7 +258,7 @@ if st.button("🚀 Analyze and Match Resume"):
                 info["Skills"], job_description
             )
 
-            if match_score == 100.0 or not rec_courses:
+            if match_score >= 85.0 or not rec_courses:
                 st.success(
                     "🎉 Exceptional match! Your skill profile covers all core requirements detected in this job description."
                 )
@@ -247,7 +268,3 @@ if st.button("🚀 Analyze and Match Resume"):
                 )
                 for i, course in enumerate(rec_courses, 1):
                     st.write(f"**{i}.** {course}")
-    else:
-        st.error(
-            "⚠️ Please provide both the resume PDF and the job description text."
-    )
