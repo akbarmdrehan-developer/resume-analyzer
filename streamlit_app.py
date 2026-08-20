@@ -30,8 +30,10 @@ SKILL_DATABASE = {
     # 3. Essential Soft Skills
     "communication": "Communication Skills for Engineers (Coursera)",
     "teamwork": "Teamwork & Collaboration in Tech (LinkedIn Learning)",
-    "collaboration": "Effective Collaboration in Agile Teams (Coursera)",
-    "adaptability": "Adaptability & Agility in Software Development (Udemy)",
+    "collaboration": "Effective Collaboration in Engineering Teams (Coursera)",
+    "leadership": "Technical Leadership & Team Management (Coursera)",
+    "management": "Engineering Project Management (Coursera)",
+    "adaptability": "Adaptability & Flexibility in Technical Teams (Udemy)",
     "time management": "Time Management for Software Developers (Pluralsight)",
     "critical thinking": "Critical Thinking & Debugging Mindset (LinkedIn Learning)",
 }
@@ -62,6 +64,8 @@ SOFT_SKILLS_KEYS = [
     "communication",
     "teamwork",
     "collaboration",
+    "leadership",
+    "management",
     "adaptability",
     "time management",
     "critical thinking",
@@ -259,9 +263,9 @@ def get_course_recommendations(resume_skills, job_desc_text):
                         missing_tech.append(skill.title())
                         tech_recs.append(course)
 
-    # Fallbacks for empty categories
+    # Comprehensive Fallback for empty soft skill categories
     if not missing_soft:
-        for soft_key in ["communication", "teamwork"]:
+        for soft_key in ["communication", "teamwork", "leadership"]:
             canonical_soft = SYNONYMS.get(soft_key, soft_key)
             if canonical_soft not in normalized_resume_skills:
                 course = SKILL_DATABASE[soft_key]
@@ -279,7 +283,7 @@ st.set_page_config(
 
 with st.sidebar:
     st.markdown("### 🎓 Project Details")
-    st.markdown("**Project Title:** AI Resume Analyzer & Analyzer")
+    st.markdown("**Project Title:** AI Resume Analyzer & Parser")
     st.markdown("**Semester:** 7th Semester, B.Tech")
     st.write("---")
     st.markdown(
@@ -293,10 +297,18 @@ st.write("---")
 uploaded_file = st.file_uploader(
     "Upload Resume (PDF format only)", type=["pdf"]
 )
+
+# Comprehensive Job Description placeholder covering all skill categories
+DEFAULT_JD_PLACEHOLDER = (
+    "We are looking for a Software Engineer proficient in Python, Java, C++, C, JavaScript, HTML, CSS, Bootstrap, SQL, MySQL, REST API, and Git/GitHub.\n"
+    "The ideal candidate must demonstrate strong core fundamentals in Data Structures, Algorithms, Object Oriented Programming (OOP), and Problem Solving.\n"
+    "Key interpersonal traits include strong Communication, Teamwork, Leadership, Management, Adaptability, Time Management, and Critical Thinking."
+)
+
 job_description = st.text_area(
     "Paste Job Description Here",
-    height=150,
-    placeholder="Looking for a Junior Software Developer proficient in Java, SQL, Git, Data Structures, OOP, and team collaboration...",
+    height=180,
+    placeholder=DEFAULT_JD_PLACEHOLDER,
 )
 
 if st.button("🚀 Analyze and Match Resume"):
