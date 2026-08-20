@@ -41,7 +41,6 @@ SYNONYMS = {
 
 
 def extract_raw_text_from_pdf(pdf_file):
-    # Reset file pointer to byte 0 to prevent empty buffer reads
     pdf_file.seek(0)
     reader = PdfReader(pdf_file)
     text = ""
@@ -115,12 +114,11 @@ def extract_resume_info(raw_text):
         "NormalizedText": normalized_text,
     }
 
+
 def calculate_match_score(resume_text, job_desc_text, resume_skills):
-    # Standardize input text whitespace to fix multi-word skill regex matching
     job_desc_clean = re.sub(r"\s+", " ", job_desc_text.lower())
     resume_text_clean = re.sub(r"\s+", " ", resume_text.lower())
 
-    # Build normalized resume skill set using synonym mapping
     normalized_resume_skills = set()
     for s in resume_skills:
         s_lower = s.lower()
@@ -128,21 +126,17 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         if s_lower in SYNONYMS:
             normalized_resume_skills.add(SYNONYMS[s_lower])
 
-    # Identify distinct skills required by Job Description
+    # Extract required database skills from JD
     raw_required_skills = []
     for skill in SKILL_DATABASE.keys():
-        # Escape special programming characters like C++ safely
-        pattern = r"(?i)(?<![a-zA-Z0-9#+])" + re.escape(skill) + r"(?![a-zA-Z0-9#+])"
-        if re.search(pattern, job_desc_clean):
+        if skill in job_desc_clean:
             raw_required_skills.append(skill)
 
-    # Deduplicate required skills using canonical mappings
     canonical_required = set()
     for req in raw_required_skills:
         canonical = SYNONYMS.get(req, req)
         canonical_required.add(canonical)
 
-    # Calculate Skill Match Score
     if canonical_required:
         matched_count = 0
         for req in canonical_required:
@@ -154,7 +148,6 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
 
         skill_score = (matched_count / len(canonical_required)) * 100
     else:
-        # Fallback: Check candidate skills directly against JD text
         if normalized_resume_skills:
             found_in_jd = sum(
                 1 for s in normalized_resume_skills if s in job_desc_clean
@@ -163,13 +156,10 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
         else:
             skill_score = 0.0
 
-    # TF-IDF Vector Similarity Calculation (Supports single-letter tokens like 'C')
+    # TF-IDF Vector Similarity Calculation
     try:
         documents = [resume_text_clean, job_desc_clean]
-        vectorizer = TfidfVectorizer(
-            stop_words="english",
-            token_pattern=r"(?u)\b\w+\b",  # Matches 1+ char tokens (includes C, SQL, etc.)
-        )
+        vectorizer = TfidfVectorizer(stop_words="english")
         tfidf_matrix = vectorizer.fit_transform(documents)
         vector_sim = float(
             cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
@@ -178,15 +168,13 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
     except Exception:
         tfidf_score = 0.0
 
-    # Final Score Calculation
+    # Dynamic final score calculation
     if canonical_required and skill_score >= 80.0:
-        # High skill match override: guarantees >=90% score when skills match
-        final_score = max(90.0, (skill_score * 0.85) + (tfidf_score * 0.15))
+        final_score = max(85.0, (skill_score * 0.85) + (tfidf_score * 0.15))
     elif canonical_required:
-        # Standard weighted score: 85% skill coverage + 15% text similarity
         final_score = (skill_score * 0.85) + (tfidf_score * 0.15)
     else:
-        final_score = skill_score
+        final_score = max(skill_score, tfidf_score)
 
     return min(round(final_score, 2), 100.0)
 
@@ -194,7 +182,6 @@ def calculate_match_score(resume_text, job_desc_text, resume_skills):
 def get_course_recommendations(resume_skills, job_desc_text):
     job_text_lower = job_desc_text.lower()
 
-    # Normalize resume skills using synonyms
     normalized_resume_skills = set()
     for s in resume_skills:
         s_lower = s.lower()
@@ -205,9 +192,8 @@ def get_course_recommendations(resume_skills, job_desc_text):
     missing_skills = []
     recommendations = []
 
-    # Check for skills explicitly required by Job Description
     for skill, course in SKILL_DATABASE.items():
-        if re.search(r"\b" + re.escape(skill) + r"\b", job_text_lower):
+        if skill in job_text_lower:
             if (
                 skill not in normalized_resume_skills
                 and SYNONYMS.get(skill) not in normalized_resume_skills
@@ -216,7 +202,6 @@ def get_course_recommendations(resume_skills, job_desc_text):
                     missing_skills.append(skill.title())
                     recommendations.append(course)
 
-    # Fallback check: if no mapped skills are found in JD, recommend foundational core skills
     if not missing_skills and not recommendations:
         core_fallback_skills = [
             "python",
